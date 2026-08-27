@@ -1,0 +1,27 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;MODE=MySQL
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+  mail:
+    host: smtp.test.com
+    port: 25
+    username: test
+    password: test
+
+app:
+  jwt:
+    secret: "c2VjcmV0LWtleS1mb3Itc3R1ZGVudC1wZXJmb3JtYW5jZS1zeXN0ZW0tMzItYnl0ZXMtbG9uZw=="
+    expiration-ms: 86400000
+    remember-me-expiration-ms: 604800000
+  ai-service:
+    base-url: http://localhost:5000
+    timeout-seconds: 30
+  upload:
+    dir: ./target/test-uploads
+    max-size-mb: 5

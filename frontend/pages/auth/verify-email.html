@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Verify Email - Smart Learn</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <div class="auth-wrapper">
+    <div class="card auth-card p-4 animate">
+      <div class="auth-logo" style="background:linear-gradient(135deg,#00b894,#55efc4);"><i class="bi bi-envelope-check"></i></div>
+      <h3 class="auth-title mb-1">Verify your email</h3>
+      <p class="auth-subtitle mb-4">Enter the 6-digit OTP we sent to your email to activate your account.</p>
+
+      <div id="otp-sent-banner" class="alert alert-info d-none" style="font-size:0.85rem;">
+        <i class="bi bi-info-circle me-1"></i>
+        <span id="dev-otp">Development mode: use the OTP shown below.</span>
+      </div>
+
+      <form id="verify-form" novalidate>
+        <div class="mb-3">
+          <label class="form-label">Email</label>
+          <input type="email" class="form-control" name="email" id="verify-email" readonly />
+        </div>
+        <div class="mb-3">
+          <label class="form-label">OTP code</label>
+          <div class="input-icon">
+            <i class="icon bi bi-123"></i>
+            <input type="text" class="form-control" name="otpCode" placeholder="6-digit code" required maxlength="6" pattern="\d{6}" />
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary w-100 py-2"><i class="bi bi-check-circle me-2"></i>Verify Email</button>
+      </form>
+
+      <div class="text-center mt-4">
+        <button type="button" class="btn btn-ghost btn-sm" id="resend-btn"><i class="bi bi-send me-1"></i>Resend OTP</button>
+      </div>
+      <p class="text-center mt-2 mb-0" style="font-size:0.9rem;">
+        Done already? <a href="/pages/auth/login.html">Back to login</a>
+      </p>
+    </div>
+  </div>
+
+  <script src="/js/theme.js"></script>
+  <script src="/js/api-client.js"></script>
+  <script src="/js/layout.js"></script>
+  <script src="/js/auth.js"></script>
+  <script>
+    ThemeManager.init();
+
+    const email = localStorage.getItem("sp_verify_email") || localStorage.getItem("sp_reset_email");
+    if (!email) {
+      // Allow manual entry if we navigated here directly
+      document.getElementById("verify-email").removeAttribute("readonly");
+    } else {
+      document.getElementById("verify-email").value = email;
+    }
+
+    const PURPOSE = "REGISTRATION";
+
+    async function sendOtp() {
+      const target = document.getElementById("verify-email").value.trim();
+      if (!target) {
+        UI.showToast("Please enter your email address first.", "warning");
+        return;
+      }
+      const btn = document.getElementById("resend-btn");
+      btn.disabled = true;
+      try {
+        const res = await API.post("/auth/send-otp", { email: target, purpose: PURPOSE });
+        const banner = document.getElementById("otp-sent-banner");
+        if (res.data && res.data.devOtp) {
+          document.getElementById("dev-otp").textContent = "Development mode: use OTP " + res.data.devOtp;
+          banner.classList.remove("d-none");
+        } else {
+          banner.classList.add("d-none");
+        }
+        UI.showToast("OTP sent to your email!", "success");
+      } catch (err) {
+        UI.showToast(UI.safeHtml(err.message), "danger");
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    document.getElementById("resend-btn").addEventListener("click", sendOtp);
+
+    AuthPage.bindForm("verify-form", async (form) => {
+      const data = Object.fromEntries(form.entries());
+      data.purpose = PURPOSE;
+      await API.post("/auth/verify-otp", data);
+      localStorage.removeItem("sp_verify_email");
+      UI.showToast("Email verified successfully!", "success");
+      setTimeout(() => (window.location.href = "/pages/auth/login.html"), 1000);
+    });
+
+    sendOtp();
+  </script>
+</body>
+</html>

@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Manage Students - Smart Learn</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+  <link rel="stylesheet" href="/css/styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</head>
+<body>
+  <div id="app"></div>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <script src="/js/theme.js"></script>
+  <script src="/js/api-client.js"></script>
+  <script src="/js/layout.js"></script>
+  <script>
+    ThemeManager.init();
+    if (!API.isAuthenticated()) window.location.href = "/pages/auth/login.html";
+    const user = API.getUser();
+    if (!user || user.role !== "ADMIN") window.location.href = "/pages/student/dashboard.html";
+
+    UI.renderShell(UI.roleItems(), "/pages/admin/students.html", "Manage Students");
+    const content = document.getElementById("page-content");
+
+    content.innerHTML = `
+      <div class="card p-3">
+        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+          <h6 class="fw-bold mb-0"><i class="bi bi-people me-2"></i>Student Management</h6>
+          <div class="position-relative">
+            <input type="search" class="form-control" id="student-search" placeholder="Search by name or email" style="width:240px;" autocomplete="off" />
+            <div id="search-suggestions" class="position-absolute w-100" style="top:100%;left:0;z-index:1050;display:none;background:var(--card);border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,0.15);max-height:280px;overflow-y:auto;"></div>
+          </div>
+        </div>
+        <div id="user-table"><div class="spinner"></div></div>
+      </div>
+
+      <div class="modal fade" id="student-modal" tabindex="-1">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h5 class="modal-title fw-bold"><i class="bi bi-person-badge me-2"></i>Student Details &amp; Performance</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="student-modal-body"><div class="spinner"></div></div>
+          </div>
+        </div>
+      </div>`;
+
+    let searchTimer = null;
+    let allStudents = [];
+    let trendChart = null;
+    let subjectChart = null;
+    const modalEl = document.getElementById("student-modal");
+
+    function showSuggestions(value) {
+      const box = document.getElementById("search-suggestions");
+      const s = (value || "").trim().toLowerCase();
+      if (!s || !allStudents.length) { box.style.display = "none"; return; }
+      const matches = allStudents
+        .filter((u) => (u.fullName || "").toLowerCase().includes(s) || (u.email || "").toLowerCase().includes(s))
+        .slice(0, 8);
+      if (!matches.length) { box.style.display = "none"; return; }
+      box.innerHTML = matches.map((u) => `
+        <button type="button" class="d-block w-100 text-start border-0 bg-transparent px-3 py-2 sugg-item"
+          style="color:var(--text);" data-name="${UI.safeHtml(u.fullName || "")}">
+          <div class="fw-semibold small">${UI.safeHtml(u.fullName || "")}</div>
+          <div class="text-muted small">${UI.safeHtml(u.email || "")}</div>
+        </button>`).join("");
+      box.style.display = "block";
+      box.querySelectorAll(".sugg-item").forEach((item) =>
+        item.addEventListener("click", () => {
+          const input = document.getElementById("student-search");
+          input.value = item.dataset.name;
+          box.style.display = "none";
+          loadUsers(input.value.trim());
+        })
+      );
+    }
+
+    async function loadUsers(search) {
+      const box = document.getElementById("user-table");
+      try {
+        const res = await API.get("/admin/users?role=STUDENT");
+        let users = (res.data && res.data.users) || res.data || [];
+        allStudents = users;
+        if (search) {
+          const s = search.toLowerCase();
+          users = users.filter((u) =>
+            (u.fullName || "").toLowerCase().includes(s) || (u.email || "").toLowerCase().includes(s)
+          );
+        }
+        if (!users.length) { box.innerHTML = `<div class="empty-state">No students found.</div>`; return; }
+        box.innerHTML = `<div class="table-responsive"><table class="table table-hover">
+          <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th></th></tr></thead>
+          <tbody>${users.map((u) => `
+            <tr class="student-row" data-user-id="${u.userId}" style="cursor:pointer;">
+              <td class="fw-semibold">${UI.safeHtml(u.fullName || "")}</td>
+              <td>${UI.safeHtml(u.email || "")}</td>
+              <td>${UI.roleBadge(u.role)}</td>
+              <td><span class="badge ${u.active ? "badge-soft-green" : "badge-soft-red"}">${u.active ? "Active" : "Disabled"}</span></td>
+              <td><button class="btn btn-sm btn-ghost toggle-btn" data-id="${u.userId}" data-active="${u.active}">${u.active ? "Disable" : "Enable"}</button></td>
+            </tr>`).join("")}
+          </tbody></table></div>`;
+        box.querySelectorAll(".student-row").forEach((row) =>
+          row.addEventListener("click", () => {
+            const student = allStudents.find((u) => String(u.userId) === String(row.dataset.userId));
+            if (student && student.studentId) openStudentOverview(student.studentId);
+            else UI.showToast("This user has no student profile", "warning");
+          })
+        );
+        box.querySelectorAll(".toggle-btn").forEach((btn) =>
+          btn.addEventListener("click", async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const id = btn.dataset.id;
+            const wasActive = btn.dataset.active === "true";
+            const me = API.getUser();
+            if (me && String(me.userId) === String(id)) {
+              UI.showToast("You cannot disable your own account", "warning");
+              return;
+            }
+            btn.disabled = true;
+            const original = btn.innerHTML;
+            btn.innerHTML = `<span class="spinner-border spinner-border-sm"></span>`;
+            try {
+              await API.put(`/admin/users/${id}/toggle`);
+              UI.showToast(wasActive ? "Student disabled" : "Student enabled", "success");
+              loadUsers(document.getElementById("student-search").value.trim());
+            } catch (err) {
+              btn.disabled = false;
+              btn.innerHTML = original;
+              UI.showToast(err.message, "danger");
+            }
+          })
+        );
+      } catch (e) {
+        box.innerHTML = `<div class="empty-state"><p>${UI.safeHtml(e.message)}</p></div>`;
+      }
+    }
+
+    function formatDate(d) {
+      if (!d) return "\u2014";
+      const dt = new Date(d);
+      if (isNaN(dt)) return "\u2014";
+      return dt.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+    }
+
+    async function openStudentOverview(studentId) {
+      const body = document.getElementById("student-modal-body");
+      body.innerHTML = `<div class="spinner"></div><p class="text-center text-muted small">Loading student analysis...</p>`;
+      if (typeof bootstrap !== "undefined") bootstrap.Modal.getOrCreateInstance(modalEl).show();
+      else { modalEl.classList.add("show"); modalEl.style.display = "block"; document.body.classList.add("modal-open"); }
+      try {
+        const res = await API.get(`/admin/students/${studentId}/overview`);
+        const s = res.data || {};
+        const history = s.testHistory || [];
+        const subjects = s.subjectPerformance || [];
+        const topics = s.topicPerformance || [];
+
+        body.innerHTML = `
+          <div class="row g-3">
+            <div class="col-lg-4">
+              <div class="card p-3 text-center">
+                <div class="mx-auto mb-2" style="width:72px;height:72px;border-radius:50%;background:var(--gradient);display:grid;place-items:center;color:#fff;font-size:1.5rem;font-weight:800;">${UI.initials(s.fullName)}</div>
+                <h6 class="fw-bold mb-0">${UI.safeHtml(s.fullName)}</h6>
+                <div class="text-muted small">${UI.safeHtml(s.studentCode || "")} ${s.active ? '<span class="badge badge-soft-green ms-1">Active</span>' : '<span class="badge badge-soft-red ms-1">Disabled</span>'}</div>
+                <hr />
+                <div class="text-start small">
+                  <div class="mb-1"><i class="bi bi-envelope me-2 text-muted"></i>${UI.safeHtml(s.email || "-")}</div>
+                  <div class="mb-1"><i class="bi bi-telephone me-2 text-muted"></i>${UI.safeHtml(s.phone || "-")}</div>
+                  <div class="mb-1"><i class="bi bi-briefcase me-2 text-muted"></i>${UI.safeHtml(s.department || "-")}</div>
+                  <div class="mb-1"><i class="bi bi-mortarboard me-2 text-muted"></i>Semester ${s.semester ?? "-"} ${s.batch ? `\u00b7 ${UI.safeHtml(s.batch)}` : ""}</div>
+                  <div class="mb-1"><i class="bi bi-bookmark-star me-2 text-muted"></i>CGPA ${s.cgpa ?? "-"}</div>
+                  <div class="mb-1"><i class="bi bi-calendar me-2 text-muted"></i>Enrolled ${s.enrollmentYear ?? "-"}</div>
+                  ${s.address ? `<div class="mb-1"><i class="bi bi-geo-alt me-2 text-muted"></i>${UI.safeHtml(s.address)}</div>` : ""}
+                </div>
+              </div>
+            </div>
+            <div class="col-lg-8">
+              <div class="row g-2 mb-3">
+                <div class="col-6 col-md-3"><div class="card p-3 text-center"><div class="fw-bold fs-5">${s.totalTests ?? 0}</div><div class="text-muted small">Tests</div></div></div>
+                <div class="col-6 col-md-3"><div class="card p-3 text-center"><div class="fw-bold fs-5">${s.avgPercentage ?? 0}%</div><div class="text-muted small">Average</div></div></div>
+                <div class="col-6 col-md-3"><div class="card p-3 text-center"><div class="fw-bold fs-5">${s.bestPercentage ?? 0}%</div><div class="text-muted small">Best</div></div></div>
+                <div class="col-6 col-md-3"><div class="card p-3 text-center"><div class="fw-bold fs-5">${s.latestPercentage ?? 0}%</div><div class="text-muted small">Latest</div></div></div>
+              </div>
+
+              <div class="card p-3 mb-3">
+                <h6 class="fw-bold mb-3"><i class="bi bi-graph-up me-2"></i>Score Trend</h6>
+                <canvas id="trend-chart" height="110"></canvas>
+              </div>
+              <div class="card p-3 mb-3">
+                <h6 class="fw-bold mb-3"><i class="bi bi-bar-chart me-2"></i>Subject-wise Accuracy</h6>
+                <canvas id="subject-chart" height="110"></canvas>
+              </div>
+              <div class="card p-3">
+                <h6 class="fw-bold mb-3"><i class="bi bi-exclamation-triangle me-2"></i>Weak Topics</h6>
+                ${topics.length ? `<div class="d-flex flex-wrap gap-2">
+                  ${topics.slice(0, 5).map((t) => `
+                    <span class="badge ${t.accuracy >= 75 ? "badge-soft-green" : t.accuracy >= 50 ? "badge-soft-orange" : "badge-soft-red"}">
+                      ${UI.safeHtml(t.topic)} ${Number(t.accuracy).toFixed(0)}%</span>`).join("")}
+                </div>` : `<p class="text-muted small mb-0">No attempt data yet.</p>`}
+              </div>
+            </div>
+          </div>
+
+          <div class="card p-3 mt-3">
+            <h6 class="fw-bold mb-3"><i class="bi bi-trophy me-2"></i>Test Marks History</h6>
+            ${history.length ? `
+            <div class="table-responsive">
+              <table class="table table-sm table-hover align-middle mb-0">
+                <thead><tr>
+                  <th class="text-muted small fw-normal">Date</th>
+                  <th class="text-muted small fw-normal">Title</th>
+                  <th class="text-end text-muted small fw-normal">Score</th>
+                  <th class="text-end text-muted small fw-normal">Percentage</th>
+                  <th class="text-end text-muted small fw-normal">Grade</th>
+                  <th class="text-end text-muted small fw-normal">Correct</th>
+                </tr></thead>
+                <tbody>
+                  ${history.map((h) => `
+                  <tr>
+                    <td class="small">${formatDate(h.submittedAt)}</td>
+                    <td class="small">${UI.safeHtml(h.title)}</td>
+                    <td class="text-end small">${Number(h.score ?? 0).toFixed(0)}/${Number(h.totalMarks ?? 0).toFixed(0)}</td>
+                    <td class="text-end small fw-semibold">${Number(h.percentage ?? 0).toFixed(2)}%</td>
+                    <td class="text-end small">${UI.safeHtml(h.grade || "-")}</td>
+                    <td class="text-end small">${h.correctCount ?? 0}/${h.totalQuestions ?? 0}</td>
+                  </tr>`).join("")}
+                </tbody>
+              </table>
+            </div>` : `<p class="text-muted small mb-0">No completed tests yet.</p>`}
+          </div>`;
+
+        renderTrendChart(history);
+        renderSubjectChart(subjects);
+      } catch (e) {
+        body.innerHTML = `<div class="empty-state"><p>${UI.safeHtml(e.message)}</p></div>`;
+      }
+    }
+
+    function renderTrendChart(history) {
+      const el = document.getElementById("trend-chart");
+      if (!el) return;
+      const labels = history.map((h) => formatDate(h.submittedAt)).reverse();
+      const data = history.map((h) => Number(h.percentage)).reverse();
+      const ctx = el.getContext("2d");
+      if (trendChart) trendChart.destroy();
+      trendChart = new Chart(ctx, {
+        type: "line",
+        data: {
+          labels,
+          datasets: [{
+            label: "Score (%)",
+            data,
+            borderColor: getComputedStyle(document.documentElement).getPropertyValue("--primary").trim() || "#7c3aed",
+            backgroundColor: "rgba(139, 92, 246,0.15)",
+            fill: true,
+            tension: 0.35,
+            pointBackgroundColor: "#7c3aed",
+            pointRadius: 4,
+          }],
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: { y: { min: 0, max: 100, ticks: { callback: (v) => v + "%" } } },
+        },
+      });
+    }
+
+    function renderSubjectChart(subjects) {
+      const el = document.getElementById("subject-chart");
+      if (!el) return;
+      const ctx = el.getContext("2d");
+      if (subjectChart) subjectChart.destroy();
+      subjectChart = new Chart(ctx, {
+        type: "bar",
+        data: {
+          labels: subjects.map((s) => s.subject || ""),
+          datasets: [{
+            label: "Accuracy (%)",
+            data: subjects.map((s) => Number(s.accuracy)),
+            backgroundColor: subjects.map((s) =>
+              Number(s.accuracy) >= 75 ? "rgba(34,197,94,0.8)" : Number(s.accuracy) >= 50 ? "rgba(245,158,11,0.8)" : "rgba(239,68,68,0.8)"),
+            borderRadius: 6,
+          }],
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: { y: { min: 0, max: 100, ticks: { callback: (v) => v + "%" } } },
+        },
+      });
+    }
+
+    document.getElementById("student-search").addEventListener("input", (e) => {
+      showSuggestions(e.target.value);
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => loadUsers(e.target.value.trim()), 300);
+    });
+    document.addEventListener("click", (e) => {
+      if (!e.target.closest("#student-search") && !e.target.closest("#search-suggestions")) {
+        document.getElementById("search-suggestions").style.display = "none";
+      }
+    });
+
+    loadUsers();
+  </script>
+</body>
+</html>

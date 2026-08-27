@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard - Smart Learn</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <div id="app"></div>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <script src="/js/theme.js"></script>
+  <script src="/js/api-client.js"></script>
+  <script src="/js/layout.js"></script>
+  <script>
+    ThemeManager.init();
+
+    if (!API.isAuthenticated()) {
+      window.location.href = "/pages/auth/login.html";
+    }
+
+    UI.renderShell(UI.roleItems(), "/pages/student/dashboard.html", "Student Dashboard");
+
+    const content = document.getElementById("page-content");
+    content.innerHTML = `
+      <div id="welcome-hero" class="card p-4 mb-4 animate">
+        <h2 class="fw-bold mb-1">Hello, <span id="student-name">Student</span>! 👋</h2>
+        <p class="text-muted mb-0" id="student-sub">Track your performance, take adaptive tests and unlock your potential.</p>
+      </div>
+
+      <div class="row g-3 mb-4" id="stat-cards">
+          <div class="col-md-3 col-6"><div class="card stat-card"><div class="stat-icon" style="background:linear-gradient(135deg,#6d28d9,#a78bfa);"><i class="bi bi-award"></i></div><div><div class="stat-label">Tests Taken</div><div class="stat-value skeleton">&nbsp;</div></div></div></div>
+        <div class="col-md-3 col-6"><div class="card stat-card"><div class="stat-icon" style="background:linear-gradient(135deg,#00b894,#55efc4);"><i class="bi bi-percent"></i></div><div><div class="stat-label">Avg Score</div><div class="stat-value skeleton">&nbsp;</div></div></div></div>
+          <div class="col-md-3 col-6"><div class="card stat-card"><div class="stat-icon" style="background:linear-gradient(135deg,#8b5cf6,#ddd6fe);"><i class="bi bi-graph-up"></i></div><div><div class="stat-label">Accuracy</div><div class="stat-value skeleton">&nbsp;</div></div></div></div>
+        <div class="col-md-3 col-6"><div class="card stat-card"><div class="stat-icon" style="background:linear-gradient(135deg,#e17055,#fab1a0);"><i class="bi bi-star"></i></div><div><div class="stat-label">Total XP</div><div class="stat-value skeleton">&nbsp;</div></div></div></div>
+      </div>
+
+      <div class="row g-3">
+        <div class="col-lg-8">
+          <div class="card p-3 mb-4">
+            <div class="d-flex justify-content-between align-items-center px-2 py-1">
+              <h6 class="fw-bold mb-0"><i class="bi bi-clipboard-data me-2"></i>Recent Test Performance</h6>
+              <a href="/pages/student/test-result.html" class="btn btn-sm btn-ghost">View all</a>
+            </div>
+            <canvas id="score-chart" height="110"></canvas>
+          </div>
+          <div class="card p-3">
+            <div class="d-flex justify-content-between align-items-center px-2 py-1">
+              <h6 class="fw-bold mb-0"><i class="bi bi-trophy me-2"></i>Leaderboard</h6>
+            </div>
+            <div id="leaderboard-list" class="py-2"><div class="spinner"></div></div>
+          </div>
+        </div>
+        <div class="col-lg-4">
+          <div class="card p-3 mb-4">
+            <h6 class="fw-bold"><i class="bi bi-lightning-charge me-2"></i>Quick Actions</h6>
+            <div class="d-grid gap-2">
+              <a href="/pages/student/adaptive-test.html" class="btn btn-primary"><i class="bi bi-clipboard-check me-2"></i>Start Adaptive Test</a>
+              <a href="/pages/student/prediction.html" class="btn btn-outline-primary"><i class="bi bi-crystal me-2"></i>Predict My Score</a>
+              <a href="/pages/student/study-planner.html" class="btn btn-outline-primary"><i class="bi bi-calendar-check me-2"></i>Generate Study Plan</a>
+              <a href="/pages/student/recommendation.html" class="btn btn-outline-primary"><i class="bi bi-magic me-2"></i>Get Recommendations</a>
+            </div>
+          </div>
+          <div class="card p-3">
+            <h6 class="fw-bold mb-3"><i class="bi bi-bell me-2"></i>Notifications</h6>
+            <div id="notification-list" class="small"><div class="spinner"></div></div>
+          </div>
+        </div>
+      </div>`;
+
+    const user = API.getUser();
+    if (user) {
+      document.getElementById("student-name").textContent = user.fullName || user.name || "Student";
+      document.getElementById("student-sub").textContent =
+        `${user.department || ""} · Semester ${user.semester || "-"} · ${user.email || ""}`;
+    }
+
+    // Load stats
+    async function loadStats() {
+      try {
+        const [overview, gam] = await Promise.all([
+          API.get("/analytics/overview"),
+          API.get("/analytics/gamification"),
+        ]);
+        const stats = [
+          { label: "Tests Taken", value: overview.data.totalTests ?? "-" },
+          { label: "Avg Score", value: overview.data.averageScore != null ? overview.data.averageScore + "%" : "-" },
+          { label: "Level", value: overview.data.level ?? gam.data.level ?? "-" },
+          { label: "Total XP", value: gam.data.xpPoints ?? overview.data.xpPoints ?? "-" },
+        ];
+        document.querySelectorAll("#stat-cards .stat-value").forEach((el, i) => {
+          el.textContent = stats[i].value;
+          el.classList.remove("skeleton");
+        });
+      } catch (e) {
+        document.querySelectorAll("#stat-cards .stat-value").forEach((el) => {
+          el.textContent = "-";
+          el.classList.remove("skeleton");
+        });
+      }
+    }
+
+    // Load score chart from test history
+    async function loadScoreChart() {
+      try {
+        const res = await API.get("/tests/history");
+        const history = (res.data && res.data.tests) || res.data || [];
+        const ctx = document.getElementById("score-chart");
+        if (!history || !history.length) {
+          ctx.parentElement.innerHTML =
+            `<div class="empty-state py-4"><div class="icon"><i class="bi bi-clipboard-x"></i></div>
+             <p>No tests taken yet. <a href="/pages/student/adaptive-test.html">Take your first test!</a></p></div>`;
+          return;
+        }
+        const labels = history.map((h) => {
+          const d = h.completedAt || h.createdAt;
+          return d ? new Date(d).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "";
+        });
+        const scores = history.map((h) => h.score || h.scorePercentage || 0);
+        new Chart(ctx, {
+          type: "line",
+          data: {
+            labels,
+            datasets: [{
+              label: "Score %",
+              data: scores,
+              borderColor: "#7c3aed",
+              backgroundColor: "rgba(139, 92, 246,0.15)",
+              fill: true,
+              tension: 0.35,
+              pointRadius: 4,
+            }],
+          },
+          options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: {
+              y: { min: 0, max: 100, ticks: { callback: (v) => v + "%" } },
+            },
+          },
+        });
+      } catch (e) {
+        const ctx = document.getElementById("score-chart");
+        if (ctx) ctx.parentElement.innerHTML = `<div class="empty-state py-4">Unable to load chart.</div>`;
+      }
+    }
+
+    async function loadLeaderboard() {
+      const box = document.getElementById("leaderboard-list");
+      try {
+        const res = await API.get("/analytics/leaderboard");
+        const rows = (res.data && res.data.leaderboard) || res.data || [];
+        if (!rows.length) {
+          box.innerHTML = `<div class="empty-state py-3"><i class="bi bi-trophy"></i><p class="mb-0">No data yet.</p></div>`;
+          return;
+        }
+        const medals = ["🥇", "🥈", "🥉"];
+        box.innerHTML = rows.map((r, i) => `
+          <div class="d-flex align-items-center gap-3 py-2 border-bottom ${i === rows.length - 1 ? "border-0" : ""}">
+            <span style="width:28px;text-align:center;font-weight:800;">${medals[i] || i + 1}</span>
+            <div class="flex-grow-1">
+              <div class="fw-semibold" style="font-size:0.9rem;">${UI.safeHtml(r.fullName || r.studentName || "Student")}</div>
+              <div class="text-muted" style="font-size:0.75rem;">${UI.safeHtml(r.department || "")}</div>
+            </div>
+            <span class="badge badge-soft">${r.xpPoints ?? r.points ?? 0} XP</span>
+          </div>`).join("");
+      } catch (e) {
+        box.innerHTML = `<div class="empty-state py-3"><i class="bi bi-trophy"></i><p class="mb-0">Leaderboard unavailable.</p></div>`;
+      }
+    }
+
+    async function loadNotifications() {
+      const box = document.getElementById("notification-list");
+      try {
+        const res = await API.get("/notifications");
+        const rows = (res.data && res.data.notifications) || res.data || [];
+        if (!rows.length) {
+          box.innerHTML = `<div class="empty-state py-3"><i class="bi bi-bell-slash"></i><p class="mb-0">No notifications.</p></div>`;
+          return;
+        }
+        box.innerHTML = rows.slice(0, 5).map((n) => `
+          <div class="py-2 border-bottom ${n.read ? "" : "fw-semibold"}">
+            <div style="font-size:0.85rem;">${UI.safeHtml(n.message || n.title || "")}</div>
+            <div class="text-muted" style="font-size:0.72rem;">${n.createdAt ? new Date(n.createdAt).toLocaleString() : ""}</div>
+          </div>`).join("");
+      } catch (e) {
+        box.innerHTML = `<div class="empty-state py-3"><i class="bi bi-bell-slash"></i><p class="mb-0">Unavailable.</p></div>`;
+      }
+    }
+
+    loadStats();
+    loadScoreChart();
+    loadLeaderboard();
+    loadNotifications();
+  </script>
+</body>
+</html>

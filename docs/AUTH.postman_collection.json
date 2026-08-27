@@ -1,0 +1,177 @@
+{
+  "info": {
+    "name": "Smart Learn - Authentication Module",
+    "description": "Complete auth module: register, login, JWT, BCrypt, OTP, forgot/reset password, role-based access.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Register",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": {
+          "raw": "http://localhost:3000/api/auth/register",
+          "host": ["http://localhost:3000"],
+          "path": ["api", "auth", "register"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"fullName\": \"Ravi Kumar\",\n  \"email\": \"ravi.kumar@example.com\",\n  \"phone\": \"9876543210\",\n  \"password\": \"Ravi@1234\",\n  \"department\": \"Computer Science\",\n  \"semester\": 3,\n  \"cgpa\": 7.8\n}"
+        }
+      }
+    },
+    {
+      "name": "Send OTP (REGISTRATION)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": {
+          "raw": "http://localhost:3000/api/auth/send-otp",
+          "host": ["http://localhost:3000"],
+          "path": ["api", "auth", "send-otp"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"ravi.kumar@example.com\",\n  \"purpose\": \"REGISTRATION\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Verify OTP",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": {
+          "raw": "http://localhost:3000/api/auth/verify-otp",
+          "host": ["http://localhost:3000"],
+          "path": ["api", "auth", "verify-otp"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"ravi.kumar@example.com\",\n  \"otpCode\": \"<OTP>\",\n  \"purpose\": \"REGISTRATION\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Login",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const json = pm.response.json();",
+              "pm.collectionVariables.set('token', json.data.token);",
+              "pm.collectionVariables.set('userId', String(json.data.userId));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": {
+          "raw": "http://localhost:3000/api/auth/login",
+          "host": ["http://localhost:3000"],
+          "path": ["api", "auth", "login"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"student1@studentai.com\",\n  \"password\": \"Student@123\",\n  \"rememberMe\": false\n}"
+        }
+      }
+    },
+    {
+      "name": "Me (current user)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": {
+          "raw": "http://localhost:3000/api/auth/me",
+          "host": ["http://localhost:3000"],
+          "path": ["api", "auth", "me"]
+        }
+      }
+    },
+    {
+      "name": "Forgot Password (send reset OTP)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": {
+          "raw": "http://localhost:3000/api/auth/forgot-password",
+          "host": ["http://localhost:3000"],
+          "path": ["api", "auth", "forgot-password"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"student1@studentai.com\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Reset Password",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": {
+          "raw": "http://localhost:3000/api/auth/reset-password",
+          "host": ["http://localhost:3000"],
+          "path": ["api", "auth", "reset-password"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"student1@studentai.com\",\n  \"otpCode\": \"<OTP>\",\n  \"newPassword\": \"NewPass@456\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Change Password",
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{token}}" }
+        ],
+        "url": {
+          "raw": "http://localhost:3000/api/auth/change-password",
+          "host": ["http://localhost:3000"],
+          "path": ["api", "auth", "change-password"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"oldPassword\": \"Student@123\",\n  \"newPassword\": \"NewPass@456\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Logout",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": {
+          "raw": "http://localhost:3000/api/auth/logout",
+          "host": ["http://localhost:3000"],
+          "path": ["api", "auth", "logout"]
+        }
+      }
+    },
+    {
+      "name": "Admin - List Users (role-based)",
+      "request": {
+        "method": "GET",
+        "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+        "url": {
+          "raw": "http://localhost:3000/api/proxy/admin/users",
+          "host": ["http://localhost:3000"],
+          "path": ["api", "proxy", "admin", "users"]
+        }
+      }
+    }
+  ],
+  "variable": [
+    { "key": "token", "value": "" },
+    { "key": "userId", "value": "" }
+  ]
+}

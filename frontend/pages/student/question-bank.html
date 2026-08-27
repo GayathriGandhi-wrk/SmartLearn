@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Question Bank - Smart Learn</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <div id="app"></div>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <script src="/js/theme.js"></script>
+  <script src="/js/api-client.js"></script>
+  <script src="/js/layout.js"></script>
+  <script>
+    ThemeManager.init();
+    if (!API.isAuthenticated()) window.location.href = "/pages/auth/login.html";
+
+    UI.renderShell(UI.roleItems(), "/pages/student/question-bank.html", "Question Bank");
+    const content = document.getElementById("page-content");
+
+    content.innerHTML = `
+      <div id="view-groups"></div>
+      <div id="view-detail" style="display:none;"></div>`;
+
+    const bankData = { questions: [] };
+
+    function difficultyBadge(level) {
+      const cls = level === "ADVANCED" ? "badge-soft-red" : level === "INTERMEDIATE" ? "badge-soft-orange" : "badge-soft-green";
+      return `<span class="badge ${cls}">${UI.safeHtml(level || "")}</span>`;
+    }
+
+    function resultBadge(q) {
+      if (q.correct) return `<span class="badge badge-soft-green"><i class="bi bi-check-circle me-1"></i>Correct</span>`;
+      if (q.notAttempted) return `<span class="badge badge-soft"><i class="bi bi-skip-forward me-1"></i>Skipped</span>`;
+      return `<span class="badge badge-soft-red"><i class="bi bi-x-circle me-1"></i>Incorrect</span>`;
+    }
+
+    function showGroups() {
+      document.getElementById("view-groups").style.display = "";
+      document.getElementById("view-detail").style.display = "none";
+
+      const groups = {};
+      bankData.questions.forEach((q) => {
+        const key = q.testId;
+        if (!groups[key]) groups[key] = { testId: q.testId, testTitle: q.testTitle || "Test", items: [] };
+        groups[key].items.push(q);
+      });
+      const list = Object.values(groups);
+
+      document.getElementById("view-groups").innerHTML = `
+        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+          <div>
+            <h5 class="fw-bold mb-1">Question Bank</h5>
+            <span class="text-muted small">${bankData.questions.length} question${bankData.questions.length === 1 ? "" : "s"} saved from your attended tests</span>
+          </div>
+          <span class="text-muted small"><i class="bi bi-info-circle me-1"></i>Select a test to revise the questions and answers you attended.</span>
+        </div>
+        ${list.length ? `
+          <div class="row g-3">
+            ${list.map((g) => {
+              const correct = g.items.filter((q) => q.correct).length;
+              const incorrect = g.items.filter((q) => !q.correct && !q.notAttempted).length;
+              const skipped = g.items.filter((q) => q.notAttempted).length;
+              return `
+              <div class="col-md-6 col-lg-4">
+                <button class="card p-3 w-100 text-start bank-group-btn animate" data-testid="${g.testId}" style="border:none;">
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="badge badge-soft"><i class="bi bi-clipboard-check me-1"></i>Test</span>
+                    <i class="bi bi-chevron-right"></i>
+                  </div>
+                  <div class="fw-semibold mb-1">${UI.safeHtml(g.testTitle)}</div>
+                  <div class="text-muted small mb-2">${g.items.length} question${g.items.length === 1 ? "" : "s"} attended</div>
+                  <div class="d-flex gap-2 small flex-wrap">
+                    <span class="badge badge-soft-green">${correct} correct</span>
+                    <span class="badge badge-soft-red">${incorrect} incorrect</span>
+                    <span class="badge badge-soft">${skipped} skipped</span>
+                  </div>
+                </button>
+              </div>`;
+            }).join("")}
+          </div>` : `
+          <div class="empty-state"><i class="bi bi-journal-check"></i><p>No questions yet. Take an adaptive test and your questions will be saved here for practice and revision.</p></div>`}`;
+
+      document.querySelectorAll(".bank-group-btn").forEach((btn) =>
+        btn.addEventListener("click", () => showDetail(Number(btn.dataset.testid)))
+      );
+    }
+
+    function showDetail(testId) {
+      const detail = document.getElementById("view-detail");
+      const questions = bankData.questions.filter((q) => q.testId === testId);
+      const testTitle = questions.length ? (questions[0].testTitle || "Test") : "Test";
+
+      detail.innerHTML = `
+        <button class="btn btn-ghost mb-3" id="back-btn"><i class="bi bi-arrow-left me-1"></i>Back</button>
+        <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+          <h6 class="fw-bold mb-0"><i class="bi bi-clipboard-check me-1"></i>${UI.safeHtml(testTitle)}</h6>
+          <span class="text-muted small ms-auto">${questions.length} question${questions.length === 1 ? "" : "s"}</span>
+        </div>
+        ${questions.map((q) => `
+          <div class="card p-3 mb-2 animate">
+            <div class="d-flex justify-content-between align-items-start mb-2 flex-wrap gap-2">
+              <div class="d-flex gap-2 flex-wrap">
+                <span class="badge badge-soft"><i class="bi bi-book me-1"></i>${UI.safeHtml(q.subjectName || "Unknown subject")}</span>
+                ${difficultyBadge(q.difficulty)}
+                ${resultBadge(q)}
+              </div>
+              <span class="text-muted small">${q.topicName ? UI.safeHtml(q.topicName) : ""}</span>
+            </div>
+            <div class="fw-semibold mb-2">${UI.safeHtml(q.questionText)}</div>
+            <div class="row g-2 small">
+              <div class="col-md-6"><span class="badge badge-soft me-1">A</span>${UI.safeHtml(q.optionA)}</div>
+              <div class="col-md-6"><span class="badge badge-soft me-1">B</span>${UI.safeHtml(q.optionB)}</div>
+              <div class="col-md-6"><span class="badge badge-soft me-1">C</span>${UI.safeHtml(q.optionC)}</div>
+              <div class="col-md-6"><span class="badge badge-soft me-1">D</span>${UI.safeHtml(q.optionD)}</div>
+            </div>
+            <div class="small mt-2 p-2 rounded" style="background:rgba(139, 92, 246,0.08);">
+              <div class="mb-1">Your answer: <b>${UI.safeHtml(q.selectedAnswer || "—")}</b></div>
+              <div class="mb-1">Correct answer: <b class="text-success">${UI.safeHtml(q.correctAnswer || "")}</b></div>
+              ${q.explanation ? `<div class="alert alert-success py-1 px-2 mt-2 mb-0" style="font-size:0.85rem;"><i class="bi bi-lightbulb me-1"></i>${UI.safeHtml(q.explanation)}</div>` : ""}
+            </div>
+          </div>`).join("")}`;
+
+      document.getElementById("view-groups").style.display = "none";
+      detail.style.display = "";
+      document.getElementById("back-btn").addEventListener("click", showGroups);
+    }
+
+    async function loadQuestions() {
+      const groupsEl = document.getElementById("view-groups");
+      try {
+        const res = await API.get("/tests/reviewed-questions");
+        bankData.questions = res.data || [];
+        showGroups();
+      } catch (e) {
+        groupsEl.innerHTML = `<div class="empty-state"><i class="bi bi-exclamation-circle"></i><p>${UI.safeHtml(e.message)}</p></div>`;
+      }
+    }
+
+    loadQuestions();
+  </script>
+</body>
+</html>

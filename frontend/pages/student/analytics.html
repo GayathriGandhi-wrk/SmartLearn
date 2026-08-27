@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Analytics - Smart Learn</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <div id="app"></div>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <script src="/js/theme.js"></script>
+  <script src="/js/api-client.js"></script>
+  <script src="/js/layout.js"></script>
+  <script>
+    ThemeManager.init();
+    if (!API.isAuthenticated()) window.location.href = "/pages/auth/login.html";
+
+    UI.renderShell(UI.roleItems(), "/pages/student/analytics.html", "Performance Analytics");
+    const content = document.getElementById("page-content");
+
+    content.innerHTML = `
+      <div class="row g-3 mb-3" id="stat-row">
+        <div class="col-md-3 col-6"><div class="card stat-card"><div class="stat-icon" style="background:linear-gradient(135deg,#7c3aed,#8b5cf6);"><i class="bi bi-collection"></i></div><div><div class="stat-label">Tests</div><div class="stat-value skeleton">&nbsp;</div></div></div></div>
+        <div class="col-md-3 col-6"><div class="card stat-card"><div class="stat-icon" style="background:linear-gradient(135deg,#00b894,#55efc4);"><i class="bi bi-question-circle"></i></div><div><div class="stat-label">Questions</div><div class="stat-value skeleton">&nbsp;</div></div></div></div>
+        <div class="col-md-3 col-6"><div class="card stat-card"><div class="stat-icon" style="background:linear-gradient(135deg,#8b5cf6,#ddd6fe);"><i class="bi bi-percent"></i></div><div><div class="stat-label">Avg Score</div><div class="stat-value skeleton">&nbsp;</div></div></div></div>
+        <div class="col-md-3 col-6"><div class="card stat-card"><div class="stat-icon" style="background:linear-gradient(135deg,#e17055,#fab1a0);"><i class="bi bi-fire"></i></div><div><div class="stat-label">Streak</div><div class="stat-value skeleton">&nbsp;</div></div></div></div>
+      </div>
+      <div class="row g-3 mb-3">
+        <div class="col-md-3 col-6"><div class="card stat-card"><div class="stat-icon" style="background:linear-gradient(135deg,#00b894,#55efc4);"><i class="bi bi-list-check"></i></div><div><div class="stat-label">Sessions Done</div><div class="stat-value skeleton" id="stat-sessions-done">&nbsp;</div></div></div></div>
+        <div class="col-md-3 col-6"><div class="card stat-card"><div class="stat-icon" style="background:linear-gradient(135deg,#7c3aed,#8b5cf6);"><i class="bi bi-clipboard-check"></i></div><div><div class="stat-label">Plan Completion</div><div class="stat-value skeleton" id="stat-plan-completion">&nbsp;</div></div></div></div>
+        <div class="col-md-3 col-6"><div class="card stat-card"><div class="stat-icon" style="background:linear-gradient(135deg,#8b5cf6,#ddd6fe);"><i class="bi bi-stopwatch"></i></div><div><div class="stat-label">Study Hours</div><div class="stat-value skeleton" id="stat-study-hours">&nbsp;</div></div></div></div>
+        <div class="col-md-3 col-6"><div class="card stat-card"><div class="stat-icon" style="background:linear-gradient(135deg,#e17055,#fab1a0);"><i class="bi bi-calendar-check"></i></div><div><div class="stat-label">Active Plans</div><div class="stat-value skeleton" id="stat-active-plans">&nbsp;</div></div></div></div>
+      </div>
+      <div class="row g-3 mb-3">
+        <div class="col-12">
+          <div class="card p-3"><h6 class="fw-bold mb-2"><i class="bi bi-calendar3 me-2"></i>Study Plan Progress (last 14 days)</h6><canvas id="study-progress-chart" height="110"></canvas></div>
+        </div>
+      </div>
+      <div class="row g-3">
+        <div class="col-lg-7">
+          <div class="card p-3 mb-3"><h6 class="fw-bold mb-2"><i class="bi bi-graph-up me-2"></i>Weekly Score Trend</h6><canvas id="weekly-chart" height="120"></canvas></div>
+          <div class="card p-3 mb-3"><h6 class="fw-bold mb-2"><i class="bi bi-graph-up-arrow me-2"></i>Monthly Score Trend</h6><canvas id="monthly-chart" height="120"></canvas></div>
+        </div>
+        <div class="col-lg-5">
+          <div class="card p-3 mb-3"><h6 class="fw-bold mb-2"><i class="bi bi-diagram-3 me-2"></i>Subject Accuracy</h6><canvas id="radar-chart" height="200"></canvas></div>
+          <div class="card p-3"><h6 class="fw-bold mb-2"><i class="bi bi-pie-chart me-2"></i>Difficulty Distribution</h6><canvas id="diff-chart" height="200"></canvas></div>
+          <div class="card p-3 mt-3"><h6 class="fw-bold mb-2"><i class="bi bi-book me-2"></i>Study Hours by Subject</h6><div id="subject-study-hours"></div></div>
+        </div>
+      </div>`;
+
+    async function load() {
+      try {
+        const res = await API.get("/analytics/overview");
+        const d = res.data;
+        const stats = [
+          d.totalTests ?? "-",
+          d.totalQuestionsAnswered ?? "-",
+          d.averageScore != null ? d.averageScore + "%" : "-",
+          d.currentStreak != null ? d.currentStreak + " days" : "-",
+        ];
+        document.querySelectorAll("#stat-row .stat-value").forEach((el, i) => {
+          el.textContent = stats[i];
+          el.classList.remove("skeleton");
+        });
+
+        const sp = d.studyPlanProgress || {};
+        const setStat = (id, value) => {
+          const el = document.getElementById(id);
+          if (!el) return;
+          el.textContent = value;
+          el.classList.remove("skeleton");
+        };
+        setStat("stat-sessions-done", `${sp.completedSessions ?? 0}/${sp.totalSessions ?? 0}`);
+        setStat("stat-plan-completion", (sp.completionPercent ?? 0) + "%");
+        setStat("stat-study-hours", (sp.hoursStudied ?? 0) + "h");
+        setStat("stat-active-plans", sp.activePlans ?? 0);
+
+        const dp = sp.dailyProgress || [];
+        new Chart(document.getElementById("study-progress-chart"), {
+          type: "bar",
+          data: {
+            labels: dp.map((p) => (p.date || "").slice(5)),
+            datasets: [
+              {
+                label: "Completed (min)",
+                data: dp.map((p) => p.completedMinutes || 0),
+                backgroundColor: "#00b894",
+                stack: "study",
+              },
+              {
+                label: "Skipped (min)",
+                data: dp.map((p) => p.skippedMinutes || 0),
+                backgroundColor: "#e17055",
+                stack: "study",
+              },
+              {
+                label: "Planned (min)",
+                data: dp.map((p) => p.plannedMinutes || 0),
+                type: "line",
+                borderColor: "#7c3aed",
+                backgroundColor: "transparent",
+                pointRadius: 2,
+                tension: 0.3,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            plugins: { legend: { position: "top" } },
+            scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } },
+          },
+        });
+
+        const sh = sp.subjectHours || [];
+        document.getElementById("subject-study-hours").innerHTML = sh.length
+          ? sh.map((s) => `
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="small">${UI.safeHtml(s.subject)} <span class="text-muted">(${s.completedSessions} sessions)</span></span>
+                <span class="fw-semibold small">${s.hours}h</span>
+              </div>`).join("")
+          : `<div class="empty-state py-2"><p class="mb-0">Complete study plan sessions to see subject hours.</p></div>`;
+
+        const line = (id, points) => {
+          new Chart(document.getElementById(id), {
+            type: "line",
+            data: {
+              labels: (points || []).map((p) => p.date || ""),
+              datasets: [{
+                data: (points || []).map((p) => p.percentage ?? 0),
+                borderColor: "#7c3aed", backgroundColor: "rgba(139, 92, 246,0.12)", fill: true, tension: 0.35,
+              }],
+            },
+            options: {
+              responsive: true,
+              plugins: { legend: { display: false } },
+              scales: { y: { min: 0, max: 100 } },
+            },
+          });
+        };
+        line("weekly-chart", d.weeklyTrend);
+        line("monthly-chart", d.monthlyTrend);
+
+        new Chart(document.getElementById("radar-chart"), {
+          type: "radar",
+          data: {
+            labels: (d.subjectAccuracy || []).map((s) => s.subject),
+            datasets: [{
+              label: "Accuracy %",
+              data: (d.subjectAccuracy || []).map((s) => s.accuracy ?? 0),
+              borderColor: "#7c3aed", backgroundColor: "rgba(139, 92, 246,0.2)", pointBackgroundColor: "#7c3aed",
+            }],
+          },
+          options: { responsive: true, scales: { r: { min: 0, max: 100, ticks: { stepSize: 20 } } } },
+        });
+
+        const dist = d.difficultyDistribution || [];
+        new Chart(document.getElementById("diff-chart"), {
+          type: "doughnut",
+          data: {
+            labels: dist.map((x) => x.difficulty),
+            datasets: [{
+              data: dist.map((x) => x.correct + x.incorrect),
+              backgroundColor: ["#00b894", "#fdcb6e", "#e17055"],
+            }],
+          },
+          options: { responsive: true, plugins: { legend: { position: "bottom" } } },
+        });
+      } catch (e) {
+        document.querySelectorAll("#stat-row .stat-value").forEach((el) => {
+          el.textContent = "-";
+          el.classList.remove("skeleton");
+        });
+        ["stat-sessions-done", "stat-plan-completion", "stat-study-hours", "stat-active-plans"].forEach((id) => {
+          const el = document.getElementById(id);
+          if (el) {
+            el.textContent = "-";
+            el.classList.remove("skeleton");
+          }
+        });
+        UI.showToast(e.message, "danger");
+      }
+    }
+    load();
+  </script>
+</body>
+</html>

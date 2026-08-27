@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Recommendations - Smart Learn</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <div id="app"></div>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <script src="/js/theme.js"></script>
+  <script src="/js/api-client.js"></script>
+  <script src="/js/layout.js"></script>
+  <script>
+    ThemeManager.init();
+    if (!API.isAuthenticated()) window.location.href = "/pages/auth/login.html";
+
+    UI.renderShell(UI.roleItems(), "/pages/student/recommendation.html", "Personalized Recommendations");
+    const content = document.getElementById("page-content");
+
+    content.innerHTML = `
+      <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <div>
+          <h5 class="fw-bold mb-1">Personalized Recommendations</h5>
+          <span class="text-muted small">Resources, videos and tips tailored to your weak areas</span>
+        </div>
+        <button class="btn btn-primary btn-sm" id="generate-btn"><i class="bi bi-magic me-1"></i>Generate Now</button>
+      </div>
+      <div id="rec-list"><div class="spinner"></div></div>
+      <div class="modal fade show" id="video-search-modal" style="display:none;" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h6 class="modal-title fw-bold"><i class="bi bi-youtube me-2 text-danger"></i>Search Study Video</h6>
+              <button type="button" class="btn-close video-search-cancel" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+              <p class="text-muted small mb-2">Search YouTube for a study-related topic. Only study related videos will be available.</p>
+              <input type="text" class="form-control" id="video-search-input" placeholder="e.g. Binary Search, SQL Joins, OOP Concepts" />
+              <div id="video-search-warning" class="alert alert-warning mt-2 mb-0 py-2 small d-none"></div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-outline-secondary btn-sm video-search-cancel">Cancel</button>
+              <button type="button" class="btn btn-primary btn-sm" id="video-search-confirm"><i class="bi bi-search me-1"></i>Search Videos</button>
+            </div>
+          </div>
+        </div>
+      </div>`;
+
+    async function load() {
+      const box = document.getElementById("rec-list");
+      try {
+        const res = await API.get("/recommendations");
+        const items = (res.data && res.data.recommendations) || res.data || [];
+        if (!items.length) {
+          box.innerHTML = `<div class="empty-state"><i class="bi bi-magic"></i>
+            <p>No recommendations yet. Click "Generate Now" to get personalized suggestions.</p></div>`;
+          return;
+        }
+        const typeIcon = {
+          VIDEO: "bi-youtube", BOOK: "bi-book", ARTICLE: "bi-file-text", PRACTICE: "bi-pencil", COURSE: "bi-mortarboard",
+          MATERIAL: "bi-file-earmark-text", QUESTION: "bi-question-circle", REVISION: "bi-arrow-repeat", STUDY_MATERIAL: "bi-journal-bookmark",
+        };
+        box.innerHTML = items.map((r) => `
+          <div class="card p-3 mb-2 animate">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+              <span class="badge badge-soft"><i class="bi ${typeIcon[r.resourceType] || "bi-lightbulb"} me-1"></i>${UI.safeHtml(r.resourceType || r.type || "")}</span>
+              <span class="text-muted small">Priority ${r.priority ?? "-"}</span>
+            </div>
+            <h6 class="fw-bold mb-1">${UI.safeHtml(r.title || "")}</h6>
+            <p class="text-muted small mb-2">${UI.safeHtml(r.description || "")}</p>
+            ${r.reason ? `<div class="small mb-2"><i class="bi bi-info-circle me-1 text-primary"></i>${UI.safeHtml(r.reason)}</div>` : ""}
+            ${r.resourceUrl ? `<button class="btn btn-sm btn-outline-primary open-resource" data-id="${r.recommendationId}" data-type="${UI.safeHtml(r.resourceType || r.type || "")}" data-url="${UI.safeHtml(r.resourceUrl)}"><i class="bi bi-box-arrow-up-right me-1"></i>Open resource</button>` : ""}
+          </div>`).join("");
+
+        box.querySelectorAll(".open-resource").forEach((btn) => {
+          btn.addEventListener("click", (e) => openResource(btn, items));
+        });
+      } catch (e) {
+        box.innerHTML = `<div class="empty-state"><p>${UI.safeHtml(e.message)}</p></div>`;
+      }
+    }
+
+    const STUDY_KEYWORDS = [
+      "programming", "c programming", "c++", "java", "python", "javascript", "js", "html", "css",
+      "frontend", "backend", "web", "database", "dbms", "sql", "mysql", "postgresql", "mongodb",
+      "nosql", "network", "networking", "protocol", "routing", "switching", "wireless", "tcp", "udp",
+      "ip", "dns", "http", "operating system", "os", "linux", "shell", "memory", "file system",
+      "artificial intelligence", "ai", "machine learning", "deep learning", "data science", "nlp",
+      "computer vision", "cloud", "cloud computing", "cybersecurity", "security", "devops", "docker",
+      "kubernetes", "git", "ci/cd", "data structure", "algorithm", "array", "linked list", "stack",
+      "queue", "tree", "graph", "sorting", "searching", "mathematics", "discrete math", "software engineering",
+      "computer architecture", "microprocessor", "computer", "student", "study", "learn", "tutorial",
+      "lecture", "course", "exam", "education", "engineering", "coding", "api", "testing",
+      "aggregation", "normalization", "indexing", "transactions", "joins", "subqueries", "triggers",
+      "stored procedure", "views", "oops", "object oriented", "inheritance", "polymorphism",
+      "recursion", "pointers", "thread", "process", "deadlock", "scheduling", "virtual memory",
+      "paging", "blockchain", "internet of things", "iot", "quantum", "android", "flutter",
+      "react", "node.js", "nodejs", "rest", "json", "express", "mobile app", "amazon web services",
+      "aws", "azure", "google cloud", "gcp", "terraform", "pipelines", "infrastructure",
+    ];
+
+    function isStudyRelated(term) {
+      const t = (term || "").toLowerCase();
+      return STUDY_KEYWORDS.some((kw) => t.includes(kw.toLowerCase()));
+    }
+
+    function extractTopic(item) {
+      const t = (item.title || "").replace(/^Video Lectures?\s*[-:]\s*/i, "").trim();
+      return t || (item.description || "").replace(/^Watch conceptual videos on\s*/i, "").trim() || "study";
+    }
+
+    const videoModal = document.getElementById("video-search-modal");
+    const videoInput = document.getElementById("video-search-input");
+    const videoWarning = document.getElementById("video-search-warning");
+    let pendingVideoUrl = null;
+
+    function openResource(btn, items) {
+      const item = items.find((r) => String(r.recommendationId) === btn.dataset.id) || items.find((r) => r.resourceUrl === btn.dataset.url);
+      const type = (btn.dataset.type || "").toUpperCase();
+      if (type !== "VIDEO") {
+        window.open(btn.dataset.url, "_blank", "noopener");
+        return;
+      }
+      pendingVideoUrl = btn.dataset.url;
+      videoInput.value = extractTopic(item);
+      videoWarning.classList.add("d-none");
+      videoModal.classList.add("show");
+      videoModal.style.display = "block";
+      document.body.classList.add("modal-open");
+      videoInput.focus();
+    }
+
+    function closeVideoModal() {
+      videoModal.classList.remove("show");
+      videoModal.style.display = "none";
+      document.body.classList.remove("modal-open");
+      pendingVideoUrl = null;
+    }
+
+    function confirmVideoSearch() {
+      const term = videoInput.value.trim();
+      if (!term) {
+        videoWarning.textContent = "Please enter a search term.";
+        videoWarning.classList.remove("d-none");
+        return;
+      }
+      if (!isStudyRelated(term)) {
+        videoWarning.textContent = "Only study related videos will be available. Please search for a study topic.";
+        videoWarning.classList.remove("d-none");
+        return;
+      }
+      window.open("https://www.youtube.com/results?search_query=" + encodeURIComponent(term), "_blank", "noopener");
+      closeVideoModal();
+    }
+
+    document.querySelectorAll(".video-search-cancel").forEach((b) => b.addEventListener("click", closeVideoModal));
+    document.getElementById("video-search-confirm").addEventListener("click", confirmVideoSearch);
+    videoModal.addEventListener("click", (e) => { if (e.target === videoModal) closeVideoModal(); });
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape" && videoModal.classList.contains("show")) closeVideoModal(); });
+    videoInput.addEventListener("keydown", (e) => { if (e.key === "Enter") confirmVideoSearch(); });
+
+    document.getElementById("generate-btn").addEventListener("click", async () => {
+      try {
+        await API.post("/recommendations/generate");
+        UI.showToast("Recommendations generated!", "success");
+        load();
+      } catch (e) { UI.showToast(e.message, "danger"); }
+    });
+
+    load();
+  </script>
+</body>
+</html>

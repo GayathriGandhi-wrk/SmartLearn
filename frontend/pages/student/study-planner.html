@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Study Planner - Smart Learn</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <div id="app"></div>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <script src="/js/theme.js"></script>
+  <script src="/js/api-client.js"></script>
+  <script src="/js/layout.js"></script>
+  <script>
+    ThemeManager.init();
+    if (!API.isAuthenticated()) window.location.href = "/pages/auth/login.html";
+
+    UI.renderShell(UI.roleItems(), "/pages/student/study-planner.html", "Study Planner");
+    const content = document.getElementById("page-content");
+
+    content.innerHTML = `
+      <div class="row g-4">
+        <div class="col-lg-4">
+          <div class="card p-4">
+            <h6 class="fw-bold mb-1"><i class="bi bi-calendar-plus me-2"></i>Generate Study Plan</h6>
+            <p class="text-muted small mb-4">Pick subjects, topics and the hours you can study — the AI schedules the rest.</p>
+            <form id="plan-form">
+              <div class="mb-3">
+                <label class="form-label fw-semibold"><span class="badge badge-soft me-1">1</span>Plan type</label>
+                <select class="form-select" name="planType">
+                  <option value="WEEKLY" selected>Weekly</option>
+                  <option value="DAILY">Day</option>
+                  <option value="MONTHLY">Monthly</option>
+                </select>
+              </div>
+              <div class="mb-3">
+                <label class="form-label fw-semibold"><span class="badge badge-soft me-1">2</span>Subjects &amp; topics</label>
+                <div id="subject-list" class="border rounded p-2" style="max-height:220px;overflow:auto;">
+                  <div class="spinner"></div>
+                </div>
+              </div>
+              <div class="mb-3">
+                <label class="form-label fw-semibold"><span class="badge badge-soft me-1">3</span>Study time (optional)</label>
+                <div class="small text-muted mb-2">Enable slots below, or just set a total.</div>
+                <div class="mb-2">
+                  <label class="form-label small mb-1">Total hours per day</label>
+                  <input type="number" class="form-control form-control-sm" name="totalHoursPerDay" min="1" max="24" placeholder="e.g. 3" />
+                </div>
+                <div id="slot-fields">
+                  <div class="slot-row border rounded p-2 mb-2">
+                    <div class="form-check">
+                      <input class="form-check-input slot-enable" type="checkbox" id="slot-morning" data-slot="morning" checked />
+                      <label class="form-check-label small" for="slot-morning">Morning</label>
+                    </div>
+                    <div class="d-flex gap-2 mt-1">
+                      <input type="time" class="form-control form-control-sm slot-start" data-slot="morning" value="06:00" />
+                      <span class="align-self-center text-muted">to</span>
+                      <input type="time" class="form-control form-control-sm slot-end" data-slot="morning" value="09:00" />
+                    </div>
+                  </div>
+                  <div class="slot-row border rounded p-2 mb-2">
+                    <div class="form-check">
+                      <input class="form-check-input slot-enable" type="checkbox" id="slot-afternoon" data-slot="afternoon" />
+                      <label class="form-check-label small" for="slot-afternoon">Afternoon</label>
+                    </div>
+                    <div class="d-flex gap-2 mt-1">
+                      <input type="time" class="form-control form-control-sm slot-start" data-slot="afternoon" value="14:00" />
+                      <span class="align-self-center text-muted">to</span>
+                      <input type="time" class="form-control form-control-sm slot-end" data-slot="afternoon" value="17:00" />
+                    </div>
+                  </div>
+                  <div class="slot-row border rounded p-2 mb-2">
+                    <div class="form-check">
+                      <input class="form-check-input slot-enable" type="checkbox" id="slot-evening" data-slot="evening" checked />
+                      <label class="form-check-label small" for="slot-evening">Evening</label>
+                    </div>
+                    <div class="d-flex gap-2 mt-1">
+                      <input type="time" class="form-control form-control-sm slot-start" data-slot="evening" value="18:00" />
+                      <span class="align-self-center text-muted">to</span>
+                      <input type="time" class="form-control form-control-sm slot-end" data-slot="evening" value="21:00" />
+                    </div>
+                  </div>
+                  <div class="slot-row border rounded p-2">
+                    <div class="form-check">
+                      <input class="form-check-input slot-enable" type="checkbox" id="slot-night" data-slot="night" />
+                      <label class="form-check-label small" for="slot-night">Night</label>
+                    </div>
+                    <div class="d-flex gap-2 mt-1">
+                      <input type="time" class="form-control form-control-sm slot-start" data-slot="night" value="21:00" />
+                      <span class="align-self-center text-muted">to</span>
+                      <input type="time" class="form-control form-control-sm slot-end" data-slot="night" value="23:00" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <button type="submit" class="btn btn-primary w-100 py-2" id="generate-btn">
+                <i class="bi bi-magic me-2"></i>Generate Plan
+              </button>
+            </form>
+          </div>
+        </div>
+        <div class="col-lg-8">
+          <div id="plan-result">
+            <div class="card p-5 text-center">
+              <div class="icon" style="font-size:3rem;color:var(--text-muted);"><i class="bi bi-calendar3"></i></div>
+              <p class="text-muted mt-3 mb-0">Fill in the steps and generate your study plan to see it here.</p>
+            </div>
+          </div>
+        </div>
+      </div>`;
+
+    const subjectList = document.getElementById("subject-list");
+    let subjectsData = [];
+
+    async function loadSubjects() {
+      try {
+        const res = await API.get("/subjects");
+        subjectsData = res.data && (Array.isArray(res.data) ? res.data : res.data.subjects || []);
+        if (!subjectsData.length) {
+          subjectList.innerHTML = `<div class="empty-state py-2"><p class="mb-0">No subjects available.</p></div>`;
+          return;
+        }
+        subjectList.innerHTML = subjectsData.map((s) => `
+          <div class="subject-item mb-1">
+            <div class="form-check">
+              <input class="form-check-input subject-check" type="checkbox" id="subj-${s.subjectId}" value="${s.subjectId}" />
+              <label class="form-check-label small fw-semibold" for="subj-${s.subjectId}">${UI.safeHtml(s.subjectName)}</label>
+            </div>
+            <div class="topic-box ps-4 d-none"></div>
+          </div>`).join("");
+        subjectList.querySelectorAll(".subject-check").forEach((cb) =>
+          cb.addEventListener("change", () => onSubjectToggle(cb))
+        );
+      } catch (e) {
+        subjectList.innerHTML = `<div class="empty-state py-2"><p class="mb-0">${UI.safeHtml(e.message)}</p></div>`;
+      }
+    }
+
+    async function onSubjectToggle(cb) {
+      const box = cb.closest(".subject-item").querySelector(".topic-box");
+      if (!cb.checked) {
+        box.classList.add("d-none");
+        box.innerHTML = "";
+        return;
+      }
+      box.classList.remove("d-none");
+      box.innerHTML = `<div class="spinner spinner-border spinner-border-sm"></div>`;
+      try {
+        const res = await API.get(`/subjects/${cb.value}/topics`);
+        const topics = res.data && (Array.isArray(res.data) ? res.data : res.data.topics || []);
+        if (!topics.length) {
+          box.innerHTML = `<span class="small text-muted">No topics available.</span>`;
+          return;
+        }
+        box.innerHTML = `
+          <div class="form-check">
+            <input class="form-check-input topic-all" type="checkbox" id="all-${cb.value}" checked />
+            <label class="form-check-label small" for="all-${cb.value}">All topics</label>
+          </div>
+          <div class="topic-items">
+            ${topics.map((t) => `
+              <div class="form-check">
+                <input class="form-check-input topic-check" type="checkbox" data-subject="${cb.value}" value="${t.topicId}" />
+                <label class="form-check-label small" for="">${UI.safeHtml(t.topicName)}</label>
+              </div>`).join("")}
+          </div>`;
+        const all = box.querySelector(".topic-all");
+        all.addEventListener("change", () => {
+          box.querySelectorAll(".topic-check").forEach((t) => (t.checked = false));
+          box.querySelectorAll(".topic-check").forEach((t) => (t.disabled = all.checked));
+        });
+        box.querySelectorAll(".topic-check").forEach((t) =>
+          t.addEventListener("change", () => {
+            const anyChecked = [...box.querySelectorAll(".topic-check")].some((x) => x.checked);
+            all.checked = false;
+            all.disabled = anyChecked;
+          })
+        );
+      } catch (e) {
+        box.innerHTML = `<span class="small text-danger">${UI.safeHtml(e.message)}</span>`;
+      }
+    }
+
+    function buildSubjectsPayload() {
+      const selections = [];
+      subjectsData.forEach((s) => {
+        const item = subjectList.querySelector(`#subj-${s.subjectId}`)?.closest(".subject-item");
+        if (!item) return;
+        const cb = item.querySelector(".subject-check");
+        if (!cb.checked) return;
+        const all = item.querySelector(".topic-all");
+        if (all && all.checked) {
+          selections.push({ subjectId: s.subjectId, allTopics: true, topics: [] });
+          return;
+        }
+        const topics = [...item.querySelectorAll(".topic-check:checked")].map((t) => Number(t.value));
+        selections.push({ subjectId: s.subjectId, allTopics: false, topics });
+      });
+      return selections;
+    }
+
+    function buildAvailableTime() {
+      const availableTime = {};
+      document.querySelectorAll(".slot-row").forEach((row) => {
+        const name = row.querySelector(".slot-enable").dataset.slot;
+        const enabled = row.querySelector(".slot-enable").checked;
+        if (!enabled) return;
+        availableTime[name] = {
+          enabled: true,
+          start: row.querySelector(".slot-start").value,
+          end: row.querySelector(".slot-end").value,
+        };
+      });
+      return availableTime;
+    }
+
+    async function loadPlan(planId) {
+      const resultBox = document.getElementById("plan-result");
+      resultBox.innerHTML = `<div class="card p-5 text-center"><div class="spinner"></div></div>`;
+      try {
+        const res = await API.get(`/study-plans/${planId}`);
+        showPlan(res.data || {});
+      } catch (e) {
+        resultBox.innerHTML = `<div class="card p-5 text-center"><div class="empty-state"><i class="bi bi-exclamation-circle"></i><p>${UI.safeHtml(e.message)}</p></div></div>`;
+      }
+    }
+
+    function priorityBadge(p) {
+      const map = { CRITICAL: "badge-soft-danger", HIGH: "badge-soft-warning", MEDIUM: "badge-soft-info", LOW: "badge-soft" };
+      return `<span class="badge ${map[p] || "badge-soft"}">${UI.safeHtml(p || "")}</span>`;
+    }
+
+    function statusBadge(s) {
+      const map = { COMPLETED: "badge-soft-green", SKIPPED: "badge-soft-secondary", PENDING: "badge-soft" };
+      return `<span class="badge ${map[s] || "badge-soft"}">${UI.safeHtml(s || "")}</span>`;
+    }
+
+    function showPlan(p) {
+      const resultBox = document.getElementById("plan-result");
+      const sessions = p.sessions || [];
+      const sessionsDone = sessions.filter((s) => s.status !== "PENDING").length;
+      const remaining = sessions.length - sessionsDone;
+      const dist = p.subjectDistribution || [];
+      const priorityTopics = p.priorityTopics || [];
+      const deferred = p.deferredTopics || [];
+      const progress = p.completionPercent || 0;
+
+      resultBox.innerHTML = `
+        <div class="card p-4">
+          <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+            <div>
+              <h5 class="fw-bold mb-0"><i class="bi bi-calendar-check me-2"></i>${UI.safeHtml(p.planType || "Study Plan")}</h5>
+              <span class="text-muted small">${p.startDate || ""} → ${p.endDate || ""} · ${p.totalHours || 0} total hours · ${sessions.length} sessions</span>
+            </div>
+            <div class="d-flex gap-2">
+              <button class="btn btn-ghost btn-sm" id="delete-plan-btn" title="Delete plan"><i class="bi bi-trash"></i></button>
+            </div>
+          </div>
+
+          <div class="row g-3 mb-3">
+            <div class="col-md-4">
+              <div class="border rounded p-3 h-100">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <span class="small text-muted">Completion</span>
+                  <span class="fw-semibold">${progress}%</span>
+                </div>
+                <div class="progress" style="height:8px;">
+                  <div class="progress-bar" style="width:${progress}%"></div>
+                </div>
+                <div class="small text-muted mt-2">${p.completedSessions || 0} done · ${remaining} remaining</div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="border rounded p-3 h-100">
+                <div class="small text-muted mb-1">Subjects covered</div>
+                <div class="fw-bold fs-5">${p.subjectCount || 0}</div>
+                <div class="small text-muted">${p.topicCount || 0} topics · ${p.highPriorityCount || 0} high priority</div>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="border rounded p-3 h-100">
+                <div class="small text-muted mb-1">Subject hours</div>
+                ${dist.slice(0, 4).map((d) => `
+                  <div class="d-flex justify-content-between small">
+                    <span class="text-truncate">${UI.safeHtml(d.name)}</span>
+                    <span class="fw-semibold">${d.hours}h</span>
+                  </div>`).join("") || `<div class="small text-muted">—</div>`}
+              </div>
+            </div>
+          </div>
+
+          ${priorityTopics.length ? `
+            <div class="mb-3">
+              <h6 class="fw-bold"><i class="bi bi-lightning-charge me-2"></i>Priority topics</h6>
+              <div class="table-responsive">
+                <table class="table table-sm table-hover">
+                  <thead><tr><th>Topic</th><th>Priority</th><th>Hours</th><th>Why</th></tr></thead>
+                  <tbody>${priorityTopics.slice(0, 8).map((t) => `
+                    <tr>
+                      <td class="fw-semibold">${UI.safeHtml(t.topic)}<div class="text-muted small">${UI.safeHtml(t.subject || "")}</div></td>
+                      <td>${priorityBadge(t.priority)}</td>
+                      <td><span class="badge badge-soft">${t.recommendedHours || 0}h</span></td>
+                      <td class="text-muted small">${UI.safeHtml(t.reason || "")}</td>
+                    </tr>`).join("")}
+                  </tbody>
+                </table>
+              </div>
+            </div>` : ""}
+
+          ${deferred.length ? `
+            <div class="alert alert-warning py-2 small mb-3">
+              <i class="bi bi-info-circle me-1"></i>
+              ${deferred.length} topic(s) deferred — not enough available time:
+              ${deferred.map((d) => UI.safeHtml(d.topic)).join(", ")}.
+            </div>` : ""}
+
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h6 class="fw-bold mb-0"><i class="bi bi-list-check me-2"></i>Sessions</h6>
+            <span class="text-muted small">Click a session to update it</span>
+          </div>
+          ${sessions.length ? `
+            <div class="table-responsive">
+              <table class="table table-hover">
+                <thead><tr><th>Date</th><th>Time</th><th>Subject</th><th>Topic</th><th>Priority</th><th>Status</th><th></th></tr></thead>
+                <tbody>${sessions.map((s) => `
+                  <tr>
+                    <td class="fw-semibold">${s.date || ""}<div class="text-muted small">${UI.safeHtml(s.day || "")}</div></td>
+                    <td class="small">${s.startTime || ""} - ${s.endTime || ""}<div class="text-muted">${s.durationMinutes || 0}m</div></td>
+                    <td>${UI.safeHtml(s.subject || "Revision")}</td>
+                    <td class="small">${UI.safeHtml(s.topic || "Revision")}</td>
+                    <td>${priorityBadge(s.priority)}</td>
+                    <td>${statusBadge(s.status)}</td>
+                    <td class="text-end">
+                      ${s.status === "PENDING" ? `
+                        <button class="btn btn-ghost btn-sm session-action" data-id="${s.sessionId}" data-action="complete" title="Mark completed"><i class="bi bi-check2-circle"></i></button>
+                        <button class="btn btn-ghost btn-sm session-action" data-id="${s.sessionId}" data-action="skip" title="Skip"><i class="bi bi-forward"></i></button>`
+                      : ""}
+                    </td>
+                  </tr>`).join("")}
+                </tbody>
+              </table>
+            </div>` : `<div class="empty-state"><p>No sessions in this plan.</p></div>`}
+        </div>`;
+
+      document.getElementById("delete-plan-btn").addEventListener("click", async () => {
+        if (!confirm("Delete this study plan?")) return;
+        try {
+          await API.del(`/study-plans/${p.planId}`);
+          UI.showToast("Plan deleted", "success");
+          resultBox.innerHTML = `<div class="card p-5 text-center"><div class="empty-state"><i class="bi bi-calendar3"></i><p class="mb-0">Plan deleted. Generate a new one above.</p></div></div>`;
+        } catch (e) {
+          UI.showToast(e.message, "danger");
+        }
+      });
+
+      resultBox.querySelectorAll(".session-action").forEach((btn) =>
+        btn.addEventListener("click", async () => {
+          btn.disabled = true;
+          try {
+            await API.put(`/study-plans/sessions/${btn.dataset.id}/${btn.dataset.action}`);
+            UI.showToast("Session updated", "success");
+            loadPlan(p.planId);
+          } catch (e) {
+            btn.disabled = false;
+            UI.showToast(e.message, "danger");
+          }
+        })
+      );
+    }
+
+    document.getElementById("plan-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const form = new FormData(e.target);
+      const data = {
+        planType: form.get("planType"),
+        totalHoursPerDay: Number(form.get("totalHoursPerDay")) || undefined,
+        availableTime: buildAvailableTime(),
+        subjects: buildSubjectsPayload(),
+      };
+      if (!data.subjects.length) {
+        UI.showToast("Select at least one subject", "danger");
+        return;
+      }
+      const resultBox = document.getElementById("plan-result");
+      const btn = document.getElementById("generate-btn");
+      btn.disabled = true;
+      btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2"></span>Generating...`;
+      resultBox.innerHTML = `<div class="card p-5 text-center"><div class="spinner"></div><p class="text-muted mt-3 mb-0">Creating your study plan...</p></div>`;
+      try {
+        const res = await API.post("/study-plans/generate", data);
+        showPlan(res.data || {});
+      } catch (err) {
+        resultBox.innerHTML = `<div class="card p-5 text-center"><div class="empty-state"><i class="bi bi-exclamation-circle"></i><p>${UI.safeHtml(err.message)}</p></div></div>`;
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = `<i class="bi bi-magic me-2"></i>Generate Plan`;
+      }
+    });
+
+    loadSubjects();
+  </script>
+</body>
+</html>

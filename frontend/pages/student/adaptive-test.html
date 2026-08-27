@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Adaptive Test - Smart Learn</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <div id="app"></div>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <script src="/js/theme.js"></script>
+  <script src="/js/api-client.js"></script>
+  <script src="/js/layout.js"></script>
+  <script>
+    ThemeManager.init();
+    if (!API.isAuthenticated()) window.location.href = "/pages/auth/login.html";
+
+    UI.renderShell(UI.roleItems(), "/pages/student/adaptive-test.html", "Adaptive Test");
+    const content = document.getElementById("page-content");
+
+    let activeTest = null;
+    let currentQuestionIndex = 0;
+    let timerInterval = null;
+    let timeRemaining = 0;
+    let testActive = false;
+    let isSubmitting = false;
+    let screenshotCount = 0;
+    const answers = {};
+
+    function warnScreenshot() {
+      screenshotCount++;
+      if (screenshotCount <= 5) {
+        UI.showToast(`Warning ${screenshotCount}/5: Screenshot attempt detected. Screenshots are not allowed during the test.`, "warning");
+      } else {
+        UI.showToast("Screenshot detected. The test is being terminated.", "danger");
+        submitTest();
+      }
+    }
+
+    window.addEventListener("keyup", (e) => {
+      if (!testActive) return;
+      if (e.key === "PrintScreen") warnScreenshot();
+      if (e.ctrlKey && e.shiftKey && (e.key === "S" || e.key === "s")) warnScreenshot();
+      if (e.altKey && (e.key === "PrintScreen" || (e.shiftKey && e.key === "S"))) warnScreenshot();
+    });
+    window.addEventListener("blur", () => {
+      if (!testActive) return;
+      warnScreenshot();
+    });
+
+    content.innerHTML = `
+      <div class="row g-3" id="setup-screen">
+        <div class="col-lg-5">
+          <div class="card p-4">
+            <h5 class="fw-bold mb-1"><i class="bi bi-magic me-2"></i>Adaptive Test</h5>
+            <p class="text-muted small mb-4">Questions adapt to your ability in real-time. Complete the test to unlock detailed analysis.</p>
+            <form id="test-setup-form">
+              <div class="mb-3">
+                <label class="form-label">Subject <span class="text-danger">*</span></label>
+                <select class="form-select" name="subjectId" id="subject-select" required>
+                  <option value="">Select a subject</option>
+                </select>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Topic <span class="text-danger">*</span></label>
+                <select class="form-select" name="topicId" id="topic-select" required disabled>
+                  <option value="">Select a subject first</option>
+                </select>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Level <span class="text-danger">*</span></label>
+                <select class="form-select" name="difficulty" id="difficulty-select" required>
+                  <option value="">Select a level</option>
+                  <option value="BEGINNER">Beginner</option>
+                  <option value="INTERMEDIATE">Intermediate</option>
+                  <option value="ADVANCED">Advanced</option>
+                </select>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Number of questions</label>
+                <select class="form-select" name="numberOfQuestions">
+                  <option value="10">10 questions</option>
+                  <option value="20" selected>20 questions</option>
+                  <option value="30">30 questions</option>
+                </select>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Duration</label>
+                <select class="form-select" name="durationMinutes">
+                  <option value="10">10 minutes</option>
+                  <option value="20" selected>20 minutes</option>
+                  <option value="30">30 minutes</option>
+                </select>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Test type</label>
+                <select class="form-select" name="testType">
+                  <option value="ADAPTIVE" selected>Adaptive</option>
+                  <option value="PRACTICE">Practice</option>
+                  <option value="CHAPTER">Chapter</option>
+                  <option value="FINAL">Final</option>
+                </select>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Title <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" name="title" placeholder="e.g. Midterm Practice" required />
+              </div>
+              <button type="submit" class="btn btn-primary w-100 py-2"><i class="bi bi-play-fill me-2"></i>Start Test</button>
+            </form>
+          </div>
+        </div>
+        <div class="col-lg-7">
+          <div class="card p-4 h-100">
+            <h6 class="fw-bold mb-3">How adaptive tests work</h6>
+            <ol class="small mb-0" style="line-height:2;">
+              <li><b>Smart selection</b> - questions are chosen based on your past performance.</li>
+              <li><b>Per-subject scoring</b> - each subject is evaluated independently.</li>
+              <li><b>Difficulty adjusts</b> - answer correctly and the level rises; get it wrong and it adapts.</li>
+              <li><b>Auto-submit</b> - answers are saved at the end or when time runs out.</li>
+              <li><b>Detailed result</b> - see correct answers, explanations and topic breakdowns.</li>
+            </ol>
+            <div class="mt-3 p-3 rounded" style="background:rgba(139, 92, 246,0.10);">
+              <div class="small"><i class="bi bi-info-circle me-2 text-primary"></i>Your last test: <span id="last-test-info">loading...</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="test-screen" style="display:none;">
+        <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+          <div>
+            <h5 class="fw-bold mb-0" id="test-title">Test</h5>
+            <span class="badge badge-soft mt-1" id="test-subject" style="display:none;"></span>
+            <span class="badge badge-soft mt-1 ms-1" id="test-level" style="display:none;"></span>
+            <span class="text-muted small d-block mt-1" id="test-progress-label">Question 1 of 20</span>
+          </div>
+          <div class="d-flex align-items-center gap-3">
+            <div class="badge badge-soft" id="test-timer" style="font-size:1rem;"><i class="bi bi-stopwatch me-1"></i>20:00</div>
+            <button class="btn btn-success btn-sm" id="submit-test-btn"><i class="bi bi-check2-circle me-1"></i>Submit Test</button>
+          </div>
+        </div>
+        <div class="progress mb-4"><div class="progress-bar" id="test-progress" style="width:0%"></div></div>
+
+        <div class="card p-4" id="question-card">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <span class="badge badge-soft" id="q-difficulty">BEGINNER</span>
+            <span class="text-muted small" id="q-marks">1 mark</span>
+          </div>
+          <h5 class="fw-bold mb-4" id="q-text">Loading...</h5>
+          <div class="d-grid gap-2" id="q-options"></div>
+        </div>
+
+        <div class="d-flex justify-content-between mt-4">
+          <button class="btn btn-ghost" id="prev-btn"><i class="bi bi-chevron-left me-1"></i>Previous</button>
+          <button class="btn btn-outline-primary" id="clear-btn">Clear answer</button>
+          <button class="btn btn-primary" id="next-btn">Next<i class="bi bi-chevron-right ms-1"></i></button>
+        </div>
+      </div>`;
+
+    async function loadSubjects() {
+      const select = document.getElementById("subject-select");
+      try {
+        const res = await API.get("/subjects");
+        const subjects = (res.data && res.data.subjects) || res.data || [];
+        if (!Array.isArray(subjects)) throw new Error("Unexpected response");
+        subjects.forEach((s) => {
+          const opt = document.createElement("option");
+          opt.value = s.subjectId;
+          opt.textContent = `${s.subjectName}${s.subjectCode ? " (" + s.subjectCode + ")" : ""}`;
+          select.appendChild(opt);
+        });
+      } catch (e) {
+        select.innerHTML = '<option value="">Subjects unavailable</option>';
+      }
+    }
+
+    async function loadTopics() {
+      const subjectId = document.getElementById("subject-select").value;
+      const topicSelect = document.getElementById("topic-select");
+      topicSelect.innerHTML = '<option value="">Loading topics...</option>';
+      topicSelect.disabled = true;
+      if (!subjectId) {
+        topicSelect.innerHTML = '<option value="">Select a subject first</option>';
+        return;
+      }
+      try {
+        const res = await API.get(`/subjects/${subjectId}/topics`);
+        const topics = (res.data && res.data.topics) || res.data || [];
+        if (!Array.isArray(topics)) throw new Error("Unexpected response");
+        topicSelect.innerHTML = "";
+        if (!topics.length) {
+          topicSelect.innerHTML = '<option value="">No topics available</option>';
+          return;
+        }
+        const placeholder = document.createElement("option");
+        placeholder.value = "";
+        placeholder.textContent = "Select a topic";
+        topicSelect.appendChild(placeholder);
+        topics.forEach((t) => {
+          const opt = document.createElement("option");
+          opt.value = t.topicId;
+          opt.textContent = t.topicName;
+          topicSelect.appendChild(opt);
+        });
+        topicSelect.disabled = false;
+      } catch (e) {
+        topicSelect.innerHTML = '<option value="">Topics unavailable</option>';
+      }
+    }
+
+    document.getElementById("subject-select").addEventListener("change", loadTopics);
+
+    async function loadLastTest() {
+      try {
+        const res = await API.get("/tests/history");
+        const history = (res.data && res.data.tests) || res.data || [];
+        if (history.length) {
+          document.getElementById("last-test-info").textContent =
+            `${history[0].title || "Test"} — ${history[0].percentage}% (${history[0].grade || "-"})`;
+        } else {
+          document.getElementById("last-test-info").textContent = "No tests taken yet.";
+        }
+      } catch (e) {
+        document.getElementById("last-test-info").textContent = "Unavailable.";
+      }
+    }
+
+    function renderQuestion() {
+      const q = activeTest.questions[currentQuestionIndex];
+      document.getElementById("test-title").textContent = activeTest.title || "Adaptive Test";
+      const subjEl = document.getElementById("test-subject");
+      if (activeTest.subjectName) {
+        subjEl.textContent = activeTest.subjectName;
+        subjEl.style.display = "";
+      } else {
+        subjEl.style.display = "none";
+      }
+      const levelEl = document.getElementById("test-level");
+      if (activeTest.difficulty) {
+        const level = activeTest.difficulty.charAt(0) + activeTest.difficulty.slice(1).toLowerCase();
+        levelEl.textContent = level + " level";
+        levelEl.style.display = "";
+      } else {
+        levelEl.style.display = "none";
+      }
+      document.getElementById("q-text").textContent = q.questionText;
+      document.getElementById("q-difficulty").textContent = q.difficulty || "BEGINNER";
+      document.getElementById("q-marks").textContent = `${q.marks ?? 1} mark${(q.marks ?? 1) > 1 ? "s" : ""}`;
+      document.getElementById("test-progress-label").textContent =
+        `Question ${currentQuestionIndex + 1} of ${activeTest.totalQuestions}`;
+      document.getElementById("test-progress").style.width =
+        `${((currentQuestionIndex + 1) / activeTest.totalQuestions) * 100}%`;
+
+      const saved = answers[q.testQuestionId];
+      const options = [
+        { key: "A", text: q.optionA },
+        { key: "B", text: q.optionB },
+        { key: "C", text: q.optionC },
+        { key: "D", text: q.optionD },
+      ];
+      document.getElementById("q-options").innerHTML = options.map((o) => `
+        <button class="btn btn-ghost text-start option-btn ${saved === o.key ? "selected" : ""}" data-key="${o.key}">
+          <span class="badge badge-soft me-2">${o.key}</span>${UI.safeHtml(o.text)}
+        </button>`).join("");
+
+      document.querySelectorAll(".option-btn").forEach((btn) =>
+        btn.addEventListener("click", () => {
+          answers[q.testQuestionId] = btn.dataset.key;
+          document.querySelectorAll(".option-btn").forEach((b) => b.classList.remove("selected"));
+          btn.classList.add("selected");
+        })
+      );
+
+      document.getElementById("prev-btn").disabled = currentQuestionIndex === 0;
+      document.getElementById("next-btn").innerHTML =
+        currentQuestionIndex === activeTest.totalQuestions - 1
+          ? 'Submit<i class="bi bi-check2 ms-1"></i>'
+          : 'Next<i class="bi bi-chevron-right ms-1"></i>';
+    }
+
+    function startTimer() {
+      timeRemaining = activeTest.durationMinutes * 60;
+      timerInterval = setInterval(() => {
+        timeRemaining--;
+        const m = Math.floor(timeRemaining / 60).toString().padStart(2, "0");
+        const s = (timeRemaining % 60).toString().padStart(2, "0");
+        const el = document.getElementById("test-timer");
+        if (el) el.innerHTML = `<i class="bi bi-stopwatch me-1"></i>${m}:${s}`;
+        if (timeRemaining <= 0) {
+          clearInterval(timerInterval);
+          submitTest();
+        }
+      }, 1000);
+    }
+
+    async function submitTest() {
+      if (isSubmitting) return;
+      isSubmitting = true;
+      clearInterval(timerInterval);
+      testActive = false;
+      const payload = { answers: Object.entries(answers).map(([testQuestionId, selectedAnswer]) => ({
+        testQuestionId: Number(testQuestionId),
+        selectedAnswer,
+        timeTakenSec: Math.floor(Math.random() * 40) + 10,
+      })) };
+      try {
+        UI.showToast("Submitting your test...", "info");
+        await API.post(`/tests/${activeTest.testId}/submit`, payload);
+        sessionStorage.setItem("sp_last_result", activeTest.testId);
+        window.location.href = "/pages/student/test-result.html";
+      } catch (e) {
+        UI.showToast(e.message, "danger");
+      }
+    }
+
+    document.getElementById("test-setup-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const form = e.target;
+      const data = Object.fromEntries(new FormData(form).entries());
+
+      if (!form.checkValidity()) {
+        UI.showToast("Please fill in all the required fields before starting the test.", "warning");
+        form.reportValidity();
+        return;
+      }
+      if (!data.subjectId) {
+        UI.showToast("Please select a subject to start the test.", "warning");
+        return;
+      }
+      if (!data.topicId) {
+        UI.showToast("Please select a topic to start the test.", "warning");
+        return;
+      }
+      if (!data.difficulty) {
+        UI.showToast("Please select a difficulty level to start the test.", "warning");
+        return;
+      }
+
+      data.numberOfQuestions = Number(data.numberOfQuestions);
+      data.durationMinutes = Number(data.durationMinutes);
+      data.subjectId = Number(data.subjectId);
+      data.topicId = Number(data.topicId);
+      data.difficulty = data.difficulty || null;
+      try {
+        const res = await API.post("/tests/start", data);
+        activeTest = res.data;
+        currentQuestionIndex = 0;
+        document.getElementById("setup-screen").style.display = "none";
+        document.getElementById("test-screen").style.display = "block";
+        testActive = true;
+        renderQuestion();
+        startTimer();
+      } catch (err) {
+        UI.showToast(err.message, "danger");
+      }
+    });
+
+    document.getElementById("next-btn").addEventListener("click", () => {
+      if (currentQuestionIndex === activeTest.totalQuestions - 1) return submitTest();
+      currentQuestionIndex++;
+      renderQuestion();
+    });
+    document.getElementById("prev-btn").addEventListener("click", () => {
+      if (currentQuestionIndex > 0) { currentQuestionIndex--; renderQuestion(); }
+    });
+    document.getElementById("clear-btn").addEventListener("click", () => {
+      delete answers[activeTest.questions[currentQuestionIndex].testQuestionId];
+      renderQuestion();
+    });
+    document.getElementById("submit-test-btn").addEventListener("click", () => {
+      testActive = false;
+      if (confirm("Submit the test now? Unanswered questions count as skipped.")) submitTest();
+    });
+
+    loadSubjects();
+    loadLastTest();
+  </script>
+</body>
+</html>

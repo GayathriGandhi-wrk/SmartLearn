@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Practice Questions - Smart Learn</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <div id="app"></div>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <script src="/js/theme.js"></script>
+  <script src="/js/api-client.js"></script>
+  <script src="/js/layout.js"></script>
+  <script>
+    ThemeManager.init();
+    if (!API.isAuthenticated()) window.location.href = "/pages/auth/login.html";
+
+    UI.renderShell(UI.roleItems(), "/pages/student/practice-questions.html", "Daily Practice");
+    const content = document.getElementById("page-content");
+
+    content.innerHTML = `
+      <div class="row g-3">
+        <div class="col-lg-8">
+          <div class="card p-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <div>
+                <h5 class="fw-bold mb-0"><i class="bi bi-pencil-square me-2"></i>Daily Practice Set</h5>
+                <span class="text-muted small">Answer each question and get instant feedback</span>
+              </div>
+              <button class="btn btn-sm btn-ghost" id="reload-btn"><i class="bi bi-arrow-clockwise me-1"></i>New Set</button>
+            </div>
+            <div id="practice-area"><div class="spinner"></div></div>
+          </div>
+        </div>
+        <div class="col-lg-4">
+          <div class="card p-3 mb-3">
+            <h6 class="fw-bold mb-2"><i class="bi bi-bookmark-star me-2"></i>Bookmarked Questions</h6>
+            <div id="bookmarks-list"><div class="spinner"></div></div>
+          </div>
+        </div>
+      </div>`;
+
+    async function loadPractice() {
+      const area = document.getElementById("practice-area");
+      area.innerHTML = `<div class="spinner"></div>`;
+      try {
+        const res = await API.get("/questions/practice/daily");
+        const questions = (res.data && res.data.questions) || res.data || [];
+        if (!questions.length) {
+          area.innerHTML = `<div class="empty-state"><i class="bi bi-patch-check"></i><p>No practice questions for today. Come back soon!</p></div>`;
+          return;
+        }
+        area.innerHTML = questions.map((q) => `
+          <div class="border rounded p-3 mb-3" data-qid="${q.questionId}">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+              <span class="badge ${q.difficulty === "ADVANCED" ? "badge-soft-red" : q.difficulty === "INTERMEDIATE" ? "badge-soft-orange" : "badge-soft-green"}">${UI.safeHtml(q.difficulty || "")}</span>
+              <button class="btn btn-sm btn-ghost bookmark-btn" title="Bookmark"><i class="bi ${q.bookmarked ? "bi-bookmark-fill" : "bi-bookmark"}"></i></button>
+            </div>
+            <div class="fw-semibold mb-2">${UI.safeHtml(q.questionText)}</div>
+            <div class="d-grid gap-2 mb-2" data-options>
+              ${["A","B","C","D"].map((k, i) => `
+                <button class="btn btn-ghost text-start opt-btn" data-key="${k}" data-opt="${i}">
+                  <span class="badge badge-soft me-2">${k}</span>${UI.safeHtml(q["option" + k])}
+                </button>`).join("")}
+            </div>
+            <div class="feedback-area" style="display:none;"></div>
+          </div>`).join("");
+
+        area.querySelectorAll(".opt-btn").forEach((btn) =>
+          btn.addEventListener("click", async () => {
+            const card = btn.closest("[data-qid]");
+            const qid = card.dataset.qid;
+            const key = btn.dataset.key;
+            card.querySelectorAll(".opt-btn").forEach((b) => b.disabled = true);
+            btn.classList.add("btn-outline-primary");
+            try {
+              await API.post(`/questions/${qid}/attempt`, { selectedAnswer: key, timeTakenSec: 20 });
+              // Fetch correct answer info
+              const q = questions.find((x) => x.questionId === Number(qid));
+              const fb = card.querySelector(".feedback-area");
+              fb.style.display = "block";
+              if (q) {
+                const correct = q.correctAnswer;
+                const isCorrect = correct === key;
+                fb.innerHTML = `
+                  <div class="alert ${isCorrect ? "alert-success" : "alert-danger"} py-2 mb-1" style="font-size:0.9rem;">
+                    <i class="bi ${isCorrect ? "bi-check-circle" : "bi-x-circle"} me-1"></i>
+                    ${isCorrect ? "Correct!" : `Incorrect. Correct answer: <b>${UI.safeHtml(correct || "")}</b>`}
+                  </div>
+                  ${q.explanation ? `<div class="alert alert-info py-2 mb-0" style="font-size:0.85rem;"><i class="bi bi-lightbulb me-1"></i>${UI.safeHtml(q.explanation)}</div>` : ""}`;
+              }
+              UI.showToast(isCorrect ? "Correct answer!" : "Keep practicing!", isCorrect ? "success" : "warning");
+            } catch (e) {
+              btn.disabled = false;
+              UI.showToast(e.message, "danger");
+            }
+          })
+        );
+
+        area.querySelectorAll(".bookmark-btn").forEach((btn) =>
+          btn.addEventListener("click", async () => {
+            const card = btn.closest("[data-qid]");
+            try {
+              const res = await API.post(`/questions/${card.dataset.qid}/bookmark`);
+              btn.innerHTML = res.data.bookmarked
+                ? '<i class="bi bi-bookmark-fill"></i>' : '<i class="bi bi-bookmark"></i>';
+              UI.showToast(res.data.bookmarked ? "Bookmarked!" : "Removed bookmark", "success");
+              loadBookmarks();
+            } catch (e) { UI.showToast(e.message, "danger"); }
+          })
+        );
+      } catch (e) {
+        area.innerHTML = `<div class="empty-state"><p>${UI.safeHtml(e.message)}</p></div>`;
+      }
+    }
+
+    async function loadBookmarks() {
+      const box = document.getElementById("bookmarks-list");
+      try {
+        const res = await API.get("/questions/bookmarks");
+        const items = (res.data && res.data.bookmarks) || res.data || [];
+        if (!items.length) {
+          box.innerHTML = `<div class="empty-state py-3"><i class="bi bi-bookmark"></i><p class="mb-0">No bookmarks yet.</p></div>`;
+          return;
+        }
+        box.innerHTML = items.slice(0, 6).map((q) => `
+          <div class="border-bottom py-2 small">
+            <div class="fw-semibold">${UI.safeHtml(q.questionText || "").slice(0, 80)}...</div>
+            <span class="badge ${q.difficulty === "ADVANCED" ? "badge-soft-red" : q.difficulty === "INTERMEDIATE" ? "badge-soft-orange" : "badge-soft-green"}">${UI.safeHtml(q.difficulty || "")}</span>
+          </div>`).join("");
+      } catch (e) {
+        box.innerHTML = `<div class="empty-state py-3"><p class="mb-0">Unavailable.</p></div>`;
+      }
+    }
+
+    document.getElementById("reload-btn").addEventListener("click", loadPractice);
+    loadPractice();
+    loadBookmarks();
+  </script>
+</body>
+</html>

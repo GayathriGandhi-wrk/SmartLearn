@@ -1,0 +1,17 @@
+# AI-Powered Student Performance Prediction & Personalized Learning System
+# Python AI Service - Dependencies
+# Install: pip install -r requirements.txt
+
+flask==3.0.3
+flask-cors==4.0.1
+pandas==2.2.2
+numpy==1.26.4
+scikit-learn==1.4.2
+xgboost==2.0.3 
+joblib==1.4.2
+shap==0.45.1
+lime==0.2.0.1
+requests==2.32.3
+python-dotenv==1.0.1
+openai==1.35.7
+google-genai==2.17.0

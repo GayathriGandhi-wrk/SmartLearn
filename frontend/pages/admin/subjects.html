@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Manage Subjects - Smart Learn</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <div id="app"></div>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <script src="/js/theme.js"></script>
+  <script src="/js/api-client.js"></script>
+  <script src="/js/layout.js"></script>
+  <script>
+    ThemeManager.init();
+    if (!API.isAuthenticated()) window.location.href = "/pages/auth/login.html";
+    const user = API.getUser();
+    if (!user || user.role !== "ADMIN") window.location.href = "/pages/student/dashboard.html";
+
+    UI.renderShell(UI.roleItems(), "/pages/admin/subjects.html", "Manage Subjects");
+    const content = document.getElementById("page-content");
+
+    content.innerHTML = `
+      <div class="card p-3">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h6 class="fw-bold mb-0"><i class="bi bi-book me-2"></i>Subjects</h6>
+          <div>
+            <button class="btn btn-sm btn-primary me-2" id="add-subject-btn"><i class="bi bi-plus-lg me-1"></i>Add Subject</button>
+            <button class="btn btn-sm btn-ghost" id="add-topic-btn"><i class="bi bi-plus-lg me-1"></i>Add Topic</button>
+          </div>
+        </div>
+        <div id="subject-table"><div class="spinner"></div></div>
+      </div>
+
+      <div class="modal fade show" id="subject-modal" style="display:none;" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h6 class="modal-title fw-bold"><i class="bi bi-book me-2 text-primary"></i>Add Subject</h6>
+              <button type="button" class="btn-close" onclick="closeModal('subject-modal')"></button>
+            </div>
+            <div class="modal-body">
+              <div class="row g-3">
+                <div class="col-6"><label class="form-label">Code</label><input class="form-control" id="sub-code" placeholder="e.g. CS501"></div>
+                <div class="col-6"><label class="form-label">Name</label><input class="form-control" id="sub-name" placeholder="e.g. Operating Systems"></div>
+                <div class="col-6"><label class="form-label">Department</label><input class="form-control" id="sub-dept" placeholder="e.g. CSE"></div>
+                <div class="col-6"><label class="form-label">Semester</label><input class="form-control" id="sub-sem" type="number" min="1" max="8" value="1"></div>
+                <div class="col-6"><label class="form-label">Credit Hours</label><input class="form-control" id="sub-credit" type="number" step="0.5" min="1" max="6" value="3"></div>
+                <div class="col-12"><label class="form-label">Description</label><textarea class="form-control" id="sub-desc" rows="2"></textarea></div>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn btn-ghost" onclick="closeModal('subject-modal')">Cancel</button>
+              <button class="btn btn-primary" id="save-subject-btn"><i class="bi bi-check-lg me-1"></i>Save Subject</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal fade show" id="topic-modal" style="display:none;" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h6 class="modal-title fw-bold"><i class="bi bi-list-ul me-2 text-success"></i>Add Topic</h6>
+              <button type="button" class="btn-close" onclick="closeModal('topic-modal')"></button>
+            </div>
+            <div class="modal-body">
+              <div class="row g-3">
+                <div class="col-12"><label class="form-label">Subject</label><select class="form-select" id="topic-subject"></select></div>
+                <div class="col-12"><label class="form-label">Topic Name</label><input class="form-control" id="topic-name" placeholder="e.g. Process Scheduling"></div>
+                <div class="col-6"><label class="form-label">Difficulty</label>
+                  <select class="form-select" id="topic-difficulty">
+                    <option value="BEGINNER">Beginner</option>
+                    <option value="INTERMEDIATE">Intermediate</option>
+                    <option value="ADVANCED">Advanced</option>
+                  </select>
+                </div>
+                <div class="col-6"><label class="form-label">Estimated Hours</label><input class="form-control" id="topic-hours" type="number" min="1" max="50" value="2"></div>
+                <div class="col-12"><label class="form-label">Description</label><textarea class="form-control" id="topic-desc" rows="2"></textarea></div>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button class="btn btn-ghost" onclick="closeModal('topic-modal')">Cancel</button>
+              <button class="btn btn-success" id="save-topic-btn"><i class="bi bi-check-lg me-1"></i>Save Topic</button>
+            </div>
+          </div>
+        </div>
+      </div>`;
+
+    function openModal(id) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.classList.add("show");
+      el.style.display = "block";
+      document.body.classList.add("modal-open");
+    }
+
+    function closeModal(id) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.classList.remove("show");
+      el.style.display = "none";
+      document.body.classList.remove("modal-open");
+    }
+
+    let cachedSubjects = [];
+
+    async function loadAdminSubjects() {
+      const box = document.getElementById("subject-table");
+      try {
+        const res = await API.get("/subjects");
+        const subjects = res.data && (res.data.subjects || Array.isArray(res.data) ? res.data : []);
+        if (!subjects.length) { box.innerHTML = `<div class="empty-state">No subjects.</div>`; return; }
+        box.innerHTML = `<div class="table-responsive"><table class="table table-hover">
+          <thead><tr><th>Code</th><th>Name</th><th>Dept</th><th>Sem</th><th>Topics</th><th>Questions</th><th></th></tr></thead>
+          <tbody>${subjects.map((s) => `
+            <tr>
+              <td><span class="badge badge-soft">${UI.safeHtml(s.subjectCode)}</span></td>
+              <td class="fw-semibold">${UI.safeHtml(s.subjectName)}</td>
+              <td>${UI.safeHtml(s.department || "-")}</td>
+              <td>${s.semester ?? "-"}</td>
+              <td>${s.topicCount ?? 0}</td>
+              <td>${s.questionCount ?? 0}</td>
+              <td class="text-end"><button class="btn btn-sm btn-ghost topic-add-btn" data-id="${s.subjectId}" data-name="${UI.safeHtml(s.subjectName)}"><i class="bi bi-plus-lg me-1"></i>Topic</button></td>
+            </tr>`).join("")}
+          </tbody></table></div>`;
+        box.querySelectorAll(".topic-add-btn").forEach((btn) =>
+          btn.addEventListener("click", () => openTopicModal(btn.dataset.id, btn.dataset.name))
+        );
+      } catch (e) {
+        box.innerHTML = `<div class="empty-state"><p>${UI.safeHtml(e.message)}</p></div>`;
+      }
+    }
+
+    async function loadSubjectOptions() {
+      const res = await API.get("/subjects");
+      cachedSubjects = res.data && (res.data.subjects || Array.isArray(res.data) ? res.data : []);
+      const sel = document.getElementById("topic-subject");
+      sel.innerHTML = cachedSubjects.map((s) =>
+        `<option value="${s.subjectId}">${UI.safeHtml(s.subjectName)} (${UI.safeHtml(s.subjectCode)})</option>`
+      ).join("");
+    }
+
+    async function openTopicModal(subjectId, subjectName) {
+      try {
+        if (!cachedSubjects.length) await loadSubjectOptions();
+        const sel = document.getElementById("topic-subject");
+        sel.value = subjectId ? String(subjectId) : (sel.options[0] ? sel.options[0].value : "");
+        document.getElementById("topic-name").value = "";
+        document.getElementById("topic-desc").value = "";
+        document.getElementById("topic-hours").value = "2";
+        document.getElementById("topic-difficulty").value = "BEGINNER";
+        openModal("topic-modal");
+      } catch (e) {
+        UI.showToast(e.message, "danger");
+      }
+    }
+
+    document.getElementById("add-subject-btn").addEventListener("click", () => {
+      document.getElementById("sub-code").value = "";
+      document.getElementById("sub-name").value = "";
+      document.getElementById("sub-dept").value = "";
+      document.getElementById("sub-sem").value = "1";
+      document.getElementById("sub-credit").value = "3";
+      document.getElementById("sub-desc").value = "";
+      openModal("subject-modal");
+    });
+
+    document.getElementById("add-topic-btn").addEventListener("click", () => openTopicModal());
+
+    document.getElementById("save-subject-btn").addEventListener("click", async () => {
+      const payload = {
+        subjectCode: document.getElementById("sub-code").value.trim(),
+        subjectName: document.getElementById("sub-name").value.trim(),
+        department: document.getElementById("sub-dept").value.trim(),
+        semester: parseInt(document.getElementById("sub-sem").value) || 1,
+        creditHours: parseFloat(document.getElementById("sub-credit").value) || 3,
+        description: document.getElementById("sub-desc").value.trim(),
+      };
+      if (!payload.subjectCode || !payload.subjectName) {
+        UI.showToast("Subject code and name are required", "warning");
+        return;
+      }
+      try {
+        await API.post("/admin/subjects", payload);
+        UI.showToast("Subject added", "success");
+        closeModal("subject-modal");
+        cachedSubjects = [];
+        loadAdminSubjects();
+      } catch (e) {
+        UI.showToast(e.message, "danger");
+      }
+    });
+
+    document.getElementById("save-topic-btn").addEventListener("click", async () => {
+      const subjectId = document.getElementById("topic-subject").value;
+      const topicName = document.getElementById("topic-name").value.trim();
+      if (!subjectId || !topicName) {
+        UI.showToast("Select a subject and enter a topic name", "warning");
+        return;
+      }
+      const payload = {
+        topicName,
+        difficultyLevel: document.getElementById("topic-difficulty").value,
+        estimatedHours: parseInt(document.getElementById("topic-hours").value) || 2,
+        description: document.getElementById("topic-desc").value.trim(),
+      };
+      try {
+        await API.post(`/admin/subjects/${subjectId}/topics`, payload);
+        UI.showToast("Topic added", "success");
+        closeModal("topic-modal");
+        loadAdminSubjects();
+      } catch (e) {
+        UI.showToast(e.message, "danger");
+      }
+    });
+
+    loadAdminSubjects();
+  </script>
+</body>
+</html>

@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Test Results - Smart Learn</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <div id="app"></div>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <script src="/js/theme.js"></script>
+  <script src="/js/api-client.js"></script>
+  <script src="/js/layout.js"></script>
+  <script>
+    ThemeManager.init();
+    if (!API.isAuthenticated()) window.location.href = "/pages/auth/login.html";
+
+    UI.renderShell(UI.roleItems(), "/pages/student/test-result.html", "Test Results");
+    const content = document.getElementById("page-content");
+
+    const lastResult = sessionStorage.getItem("sp_last_result");
+    content.innerHTML = `
+      <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <div><h5 class="fw-bold mb-1">Test Results</h5><span class="text-muted small">Review your adaptive test performance</span></div>
+        <a href="/pages/student/adaptive-test.html" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg me-1"></i>New Test</a>
+      </div>
+      <div id="latest-result-card"></div>
+      <div class="card p-3 mt-3">
+        <div class="d-flex justify-content-between align-items-center px-2 py-1">
+          <h6 class="fw-bold mb-0"><i class="bi bi-clock-history me-2"></i>Test History</h6>
+        </div>
+        <div class="table-responsive mt-2" id="history-table"><div class="spinner"></div></div>
+      </div>`;
+
+    async function loadHistory() {
+      const box = document.getElementById("history-table");
+      try {
+        const res = await API.get("/tests/history");
+        const history = (res.data && res.data.tests) || res.data || [];
+        if (!history.length) {
+          box.innerHTML = `<div class="empty-state"><i class="bi bi-clipboard-x"></i><p>No tests taken yet.</p></div>`;
+          return;
+        }
+        box.innerHTML = `<table class="table table-hover">
+          <thead><tr><th>Title</th><th>Status</th><th>Score</th><th>Grade</th><th>Date</th><th></th></tr></thead>
+          <tbody>${history.map((h) => `
+            <tr>
+              <td class="fw-semibold">${UI.safeHtml(h.title || "Test")}</td>
+              <td><span class="badge ${h.status === "COMPLETED" ? "badge-soft-green" : "badge-soft-orange"}">${UI.safeHtml(h.status || "")}</span></td>
+              <td>${h.percentage ?? "-"}%</td>
+              <td><span class="badge badge-soft">${UI.safeHtml(h.grade || "-")}</span></td>
+              <td class="text-muted small">${h.submittedAt ? new Date(h.submittedAt).toLocaleString() : "-"}</td>
+              <td><a class="btn btn-sm btn-ghost" href="#" data-view="${h.testId}">View</a></td>
+            </tr>`).join("")}
+          </tbody></table>`;
+        box.querySelectorAll("[data-view]").forEach((a) =>
+          a.addEventListener("click", (e) => { e.preventDefault(); loadResult(a.dataset.view, true); })
+        );
+      } catch (e) {
+        box.innerHTML = `<div class="empty-state"><p>${UI.safeHtml(e.message)}</p></div>`;
+      }
+    }
+
+    async function loadResult(testId, scroll) {
+      const box = document.getElementById("latest-result-card");
+      box.innerHTML = `<div class="spinner"></div>`;
+      try {
+        const res = await API.get(`/tests/${testId}/result`);
+        const r = res.data;
+        const gradeColor = { A: "success", B: "primary", C: "warning", D: "secondary", F: "danger" };
+        box.innerHTML = `
+          <div class="card p-4 animate">
+            <div class="row align-items-center g-3">
+              <div class="col-lg-3 text-center">
+                <div style="width:110px;height:110px;border-radius:50%;background:var(--gradient);display:grid;place-items:center;margin:0 auto;">
+                  <div style="text-align:center;color:#fff;">
+                    <div style="font-size:1.8rem;font-weight:800;">${UI.safeHtml(r.grade || "-")}</div>
+                    <div style="font-size:0.7rem;">GRADE</div>
+                  </div>
+                </div>
+                <div class="mt-2 fw-bold" style="font-size:1.2rem;">${r.percentage ?? 0}%</div>
+                <div class="text-muted small">${UI.safeHtml(r.title || "Test")}</div>
+              </div>
+              <div class="col-lg-9">
+                <div class="row g-2 text-center">
+                  <div class="col-3 col-md-2"><div class="card p-2"><div class="fw-bold">${r.totalQuestions}</div><div class="text-muted small">Total</div></div></div>
+                  <div class="col-3 col-md-2"><div class="card p-2 border-success"><div class="fw-bold text-success">${r.correctCount}</div><div class="text-muted small">Correct</div></div></div>
+                  <div class="col-3 col-md-2"><div class="card p-2 border-danger"><div class="fw-bold text-danger">${r.incorrectCount}</div><div class="text-muted small">Wrong</div></div></div>
+                  <div class="col-3 col-md-2"><div class="card p-2"><div class="fw-bold text-muted">${r.skippedCount}</div><div class="text-muted small">Skipped</div></div></div>
+                  <div class="col-6 col-md-2"><div class="card p-2"><div class="fw-bold">${r.obtainedMarks ?? 0}</div><div class="text-muted small">Marks</div></div></div>
+                  <div class="col-6 col-md-2"><div class="card p-2"><div class="fw-bold">${r.accuracyRate ?? 0}%</div><div class="text-muted small">Accuracy</div></div></div>
+                </div>
+                ${r.summaryText ? `<div class="alert alert-info small mt-3 mb-0"><i class="bi bi-chat-square-text me-2"></i>${UI.safeHtml(r.summaryText)}</div>` : ""}
+              </div>
+            </div>
+          </div>
+          ${buildFeedback(r)}
+          <div class="card p-3 mt-3">
+            <h6 class="fw-bold mb-3"><i class="bi bi-list-check me-2"></i>Detailed Review</h6>
+            <div id="result-questions">
+              ${(r.questions || []).map((q, i) => `
+                <div class="border rounded p-3 mb-2 ${q.isCorrect ? "border-success" : q.notAttempted ? "" : "border-danger"}">
+                  <div class="d-flex justify-content-between mb-1">
+                    <span class="text-muted small">Q${i + 1} · ${UI.safeHtml(q.difficulty || "")}</span>
+                    <span class="badge ${q.isCorrect ? "badge-soft-green" : q.notAttempted ? "badge-soft" : "badge-soft-red"}">
+                      ${q.isCorrect ? "Correct" : q.notAttempted ? "Skipped" : "Incorrect"}
+                    </span>
+                  </div>
+                  <div class="fw-semibold mb-2">${UI.safeHtml(q.questionText)}</div>
+                  <div class="small">
+                    <div class="mb-1">Your answer: <b>${UI.safeHtml(q.selectedAnswer || "—")}</b></div>
+                    <div class="mb-1">Correct answer: <b class="text-success">${UI.safeHtml(q.correctAnswer || "")}</b></div>
+                    ${q.explanation ? `<div class="alert alert-success py-1 px-2 mt-2 mb-0" style="font-size:0.85rem;"><i class="bi bi-lightbulb me-1"></i>${UI.safeHtml(q.explanation)}</div>` : ""}
+                  </div>
+                </div>`).join("")}
+            </div>
+          </div>`;
+        if (scroll) {
+          window.scrollTo({ top: 0, behavior: "smooth" });
+          document.getElementById("latest-result-card").scrollIntoView({ behavior: "smooth" });
+        }
+      } catch (e) {
+        box.innerHTML = `<div class="empty-state"><p>${UI.safeHtml(e.message)}</p></div>`;
+      }
+    }
+
+    function buildFeedback(r) {
+      const pct = Number(r.percentage ?? 0);
+      const grade = UI.safeHtml(r.grade || "-");
+      const correct = r.correctCount ?? 0;
+      const total = r.totalQuestions ?? 0;
+      const skipped = r.skippedCount ?? 0;
+      const wrong = r.incorrectCount ?? 0;
+
+      let rating, ratingColor, ratingIcon, ratingMsg;
+      if (pct >= 80) {
+        rating = "Excellent";
+        ratingColor = "success";
+        ratingIcon = "trophy-fill";
+        ratingMsg = "Outstanding performance! You have a strong command of the material.";
+      } else if (pct >= 60) {
+        rating = "Good";
+        ratingColor = "primary";
+        ratingIcon = "hand-thumbs-up-fill";
+        ratingMsg = "Solid performance! Sharpen the weak areas below to reach the top.";
+      } else if (pct >= 40) {
+        rating = "Average";
+        ratingColor = "warning";
+        ratingIcon = "graph-up-arrow";
+        ratingMsg = "You are on the right track, but there is clear room for improvement.";
+      } else {
+        rating = "Needs Improvement";
+        ratingColor = "danger";
+        ratingIcon = "arrow-down-circle-fill";
+        ratingMsg = "This result shows significant gaps. Do not be discouraged - focus on the areas below and practice regularly.";
+      }
+
+      const diffMap = {};
+      (r.questions || []).forEach((q) => {
+        const d = (q.difficulty || "Unknown").charAt(0) + (q.difficulty || "Unknown").slice(1).toLowerCase();
+        if (!diffMap[d]) diffMap[d] = { total: 0, correct: 0 };
+        diffMap[d].total++;
+        if (q.isCorrect) diffMap[d].correct++;
+      });
+
+      const clsMap = { success: "badge-soft-green", primary: "badge-soft", warning: "badge-soft-orange", danger: "badge-soft-red" };
+      const diffRows = Object.entries(diffMap).map(([d, v]) => {
+        const acc = Math.round((v.correct / v.total) * 100);
+        const cls = acc >= 80 ? "success" : acc >= 60 ? "primary" : "danger";
+        return `<div class="d-flex justify-content-between align-items-center border-bottom py-2 small">
+          <span><b>${UI.safeHtml(d)}</b> level</span>
+          <span><span class="badge ${clsMap[cls]}">${v.correct}/${v.total} correct (${acc}%)</span></span>
+        </div>`;
+      }).join("");
+
+      const weakDiffs = Object.entries(diffMap)
+        .filter(([d, v]) => v.total > 0 && v.correct / v.total < 0.6)
+        .sort((a, b) => (a[1].correct / a[1].total) - (b[1].correct / b[1].total));
+
+      const weakItems = [];
+      weakDiffs.forEach(([d, v]) => {
+        const acc = Math.round((v.correct / v.total) * 100);
+        weakItems.push(`<li>Accuracy on <b>${UI.safeHtml(d)}</b> level questions is only <b>${acc}%</b> (${v.correct}/${v.total} correct).</li>`);
+      });
+      if (skipped > 0) {
+        weakItems.push(`<li>You skipped <b>${skipped}</b> question${skipped > 1 ? "s" : ""} - unattempted questions cost you the most marks.</li>`);
+      }
+      if (weakItems.length === 0) {
+        weakItems.push(`<li>No major weak spots detected. Challenge yourself with <b>Intermediate</b> and <b>Advanced</b> level questions to keep growing.</li>`);
+      }
+
+      const tips = [];
+      if (wrong > 0) {
+        tips.push(`Review the <b>${wrong} incorrect answer${wrong > 1 ? "s" : ""}</b> in the Detailed Review below and read each explanation carefully.`);
+      }
+      if (weakDiffs.length > 0) {
+        tips.push(`Take a new Adaptive Test focused on the weak level${weakDiffs.length > 1 ? "s" : ""} until you score above 70% before moving up.`);
+      }
+      if (pct >= 80) {
+        tips.push(`Great result! Try <b>Advanced</b> level and <b>Final</b> type tests to stretch yourself further.`);
+      } else {
+        tips.push(`Re-practice the same difficulty until you consistently score above <b>70%</b>, then progress to the next level.`);
+      }
+      tips.push(`Use the <b>Study Planner</b> and <b>Recommendations</b> pages for a personalized revision plan.`);
+      tips.push(`Track your improvement trend after each test on the <b>Analytics</b> page.`);
+
+      return `
+        <div class="card p-4 mt-3">
+          <h6 class="fw-bold mb-3"><i class="bi bi-chat-square-heart me-2"></i>Performance Feedback</h6>
+          <div class="alert alert-${ratingColor} d-flex align-items-center gap-3 py-2 px-3 mb-3" style="font-size:0.95rem;">
+            <i class="bi bi-${ratingIcon}" style="font-size:1.6rem;"></i>
+            <div><b>Overall rating: ${rating} - Grade ${grade} (${pct}%)</b><br><span class="small">${ratingMsg}</span></div>
+          </div>
+          <div class="row g-4">
+            <div class="col-md-6">
+              <h6 class="fw-bold"><i class="bi bi-bar-chart me-1"></i>How you performed</h6>
+              <div class="mb-2 small text-muted">${correct}/${total} correct - ${r.accuracyRate ?? 0}% accuracy across all questions.</div>
+              ${diffRows || '<div class="small text-muted">No difficulty data available.</div>'}
+            </div>
+            <div class="col-md-6">
+              <h6 class="fw-bold"><i class="bi bi-bullseye me-1"></i>Where to improve</h6>
+              <ul class="small mb-0" style="line-height:1.9;">${weakItems.join("")}</ul>
+            </div>
+          </div>
+          <div class="mt-4">
+            <h6 class="fw-bold"><i class="bi bi-lightbulb me-1"></i>Suggested next steps</h6>
+            <ul class="small mb-0" style="line-height:2;">${tips.map((t) => `<li>${t}</li>`).join("")}</ul>
+          </div>
+        </div>`;
+    }
+
+    loadHistory();
+    if (lastResult) {
+      loadResult(lastResult);
+      sessionStorage.removeItem("sp_last_result");
+    }
+  </script>
+</body>
+</html>
