@@ -2,7 +2,6 @@
 """
 Question bank for subject 43: ENG101 - Communication Skills & Technical English.
 Category: Core Computer Science & Emerging Technologies.
-Semester: 1.
 
 Topics:
   211: English Grammar & Vocabulary

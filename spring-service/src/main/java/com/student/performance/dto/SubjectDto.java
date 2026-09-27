@@ -14,7 +14,6 @@ public class SubjectDto {
             String subjectCode,
             String subjectName,
             String department,
-            Integer semester,
             BigDecimal creditHours,
             String description,
             long topicCount,
@@ -22,7 +21,7 @@ public class SubjectDto {
     ) {
         public static SubjectResponse from(Subject s, long topics, long questions) {
             return new SubjectResponse(s.getSubjectId(), s.getSubjectCode(), s.getSubjectName(),
-                    s.getDepartment(), s.getSemester(), s.getCreditHours(), s.getDescription(), topics, questions);
+                    s.getDepartment(), s.getCreditHours(), s.getDescription(), topics, questions);
         }
     }
 
@@ -46,7 +45,6 @@ public class SubjectDto {
             String subjectCode,
             String subjectName,
             String department,
-            Integer semester,
             BigDecimal creditHours,
             String description
     ) {}

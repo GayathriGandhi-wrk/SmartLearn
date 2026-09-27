@@ -69,6 +69,19 @@ public class AiServiceClientImpl implements AiServiceClient {
         return post("/api/chat", body);
     }
 
+    @Override
+    public Map<String, Object> generateQuestions(String topic, String subject, String resourceTitle,
+                                                 String difficulty, int count, List<String> avoid) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("topic", topic);
+        body.put("subject", subject);
+        body.put("resource_title", resourceTitle);
+        body.put("difficulty", difficulty);
+        body.put("count", count);
+        body.put("avoid", avoid == null ? List.of() : avoid);
+        return post("/api/generate-questions", body);
+    }
+
     private Map<String, Object> post(String path, Map<String, Object> body) {
         try {
             return webClient.post()

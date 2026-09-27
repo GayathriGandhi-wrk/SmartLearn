@@ -29,10 +29,6 @@ public class AuthDto {
             @NotBlank(message = "Department is required")
             String department,
 
-            @Min(value = 1, message = "Semester must be at least 1")
-            @Max(value = 8, message = "Semester must be at most 8")
-            int semester,
-
             @DecimalMin(value = "0.0", message = "CGPA cannot be negative")
             @DecimalMax(value = "10.0", message = "CGPA cannot exceed 10.0")
             Double cgpa

@@ -2,7 +2,6 @@
 """
 Question bank for subject 59: WEB106 - Advanced Web Technologies.
 Category: Web & Mobile Development.
-Semester: 8.
 
 Topics:
   291: Microservices & Containerization

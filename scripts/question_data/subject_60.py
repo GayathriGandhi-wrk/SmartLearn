@@ -2,7 +2,6 @@
 """
 Question bank for subject 60: CORE112 - Emerging Research in Computing.
 Category: Core Computer Science & Emerging Technologies.
-Semester: 8.
 
 Topics:
   296: Quantum Computing Basics

@@ -126,7 +126,6 @@ CREATE TABLE subjects (
   subject_code     VARCHAR(30)  NOT NULL,
   subject_name     VARCHAR(150) NOT NULL,
   department       VARCHAR(100) NULL,
-  semester         INT          NULL,
   credit_hours     DECIMAL(3,1) NOT NULL DEFAULT 3.0,
   description      TEXT         NULL,
   is_active        TINYINT(1)   NOT NULL DEFAULT 1,
@@ -135,7 +134,6 @@ CREATE TABLE subjects (
   UNIQUE KEY uq_subjects_code (subject_code),
   UNIQUE KEY uq_subjects_name (subject_name),
   KEY idx_subjects_department (department),
-  KEY idx_subjects_semester (semester),
   KEY idx_subjects_category (category_id),
   KEY idx_subjects_created (created_at),
   CONSTRAINT fk_subjects_category FOREIGN KEY (category_id) REFERENCES categories (category_id)
@@ -184,6 +182,9 @@ CREATE TABLE questions (
   marks           DECIMAL(4,2) NOT NULL DEFAULT 1.00,
   question_type   VARCHAR(30)  NOT NULL DEFAULT 'MCQ',
   is_active       TINYINT(1)   NOT NULL DEFAULT 1,
+  source          ENUM('SEED','AI') NOT NULL DEFAULT 'SEED',
+  content_hash    CHAR(64)     NULL,
+  source_resource VARCHAR(255) NULL,
   created_at      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (question_id),
   KEY idx_questions_topic (topic_id),
@@ -191,6 +192,8 @@ CREATE TABLE questions (
   KEY idx_questions_topic_difficulty (topic_id, difficulty),
   KEY idx_questions_type (question_type),
   KEY idx_questions_created (created_at),
+  KEY idx_questions_source (source),
+  KEY idx_questions_hash (content_hash),
   CONSTRAINT fk_questions_topic FOREIGN KEY (topic_id) REFERENCES topics (topic_id)
     ON DELETE CASCADE ON UPDATE CASCADE,
   CONSTRAINT chk_questions_marks CHECK (marks IN (1.00, 2.00, 3.00))
@@ -583,5 +586,35 @@ CREATE TABLE analytics (
   KEY idx_analytics_type (event_type),
   KEY idx_analytics_date (event_date),
   CONSTRAINT fk_analytics_student FOREIGN KEY (student_id) REFERENCES students (student_id)
+    ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB;
+
+-- ============================================================================
+-- 23. TOPIC RESOURCE VIEWS
+-- Records which tutorial/doc/video a student opened, and how far they got.
+-- resource_key is a stable hash of (student, topic, url) so re-opening the same
+-- link updates the existing row (last_viewed_at) instead of creating duplicates.
+-- That row is the input for "I have learned up to here" question generation.
+-- ============================================================================
+CREATE TABLE resource_views (
+  view_id          BIGINT        NOT NULL AUTO_INCREMENT,
+  student_id       BIGINT        NOT NULL,
+  topic_id         BIGINT        NOT NULL,
+  resource_type    ENUM('VIDEO','DOC','SEARCH') NOT NULL DEFAULT 'VIDEO',
+  resource_title   VARCHAR(255)  NOT NULL,
+  resource_url     VARCHAR(500)  NOT NULL,
+  resource_key     CHAR(64)      NOT NULL,
+  progress_label   VARCHAR(120)  NULL,
+  first_viewed_at  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  last_viewed_at   DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  view_count       INT           NOT NULL DEFAULT 1,
+  PRIMARY KEY (view_id),
+  UNIQUE KEY uq_resource_view_key (resource_key),
+  KEY idx_resource_view_student (student_id),
+  KEY idx_resource_view_topic (topic_id),
+  KEY idx_resource_view_last (last_viewed_at),
+  CONSTRAINT fk_resource_view_student FOREIGN KEY (student_id) REFERENCES students (student_id)
+    ON DELETE CASCADE ON UPDATE CASCADE,
+  CONSTRAINT fk_resource_view_topic FOREIGN KEY (topic_id) REFERENCES topics (topic_id)
     ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB;

@@ -61,12 +61,24 @@ public class Question {
     @Column(name = "is_active", nullable = false)
     private boolean active = true;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "source", nullable = false, length = 10)
+    private Source source = Source.SEED;
+
+    @Column(name = "content_hash", length = 64)
+    private String contentHash;
+
+    @Column(name = "source_resource", length = 255)
+    private String sourceResource;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
     public enum Answer { A, B, C, D }
 
     public enum Difficulty { BEGINNER, INTERMEDIATE, ADVANCED }
+
+    public enum Source { SEED, AI }
 
     @PrePersist
     void onCreate() {

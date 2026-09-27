@@ -2,7 +2,6 @@
 """
 Question bank for subject 42: PHY101 - Applied Physics & Basic Electronics.
 Category: Core Computer Science & Emerging Technologies.
-Semester: 1.
 
 Topics:
   206: Semiconductors & Diodes

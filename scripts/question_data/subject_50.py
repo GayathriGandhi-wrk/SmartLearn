@@ -2,7 +2,6 @@
 """
 Question bank for subject 50: CORE108 - Computer Graphics.
 Category: Core Computer Science & Emerging Technologies.
-Semester: 6.
 
 Topics:
   246: Graphics Primitives & Output

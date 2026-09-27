@@ -3,7 +3,8 @@
 Question Bank SQL Generator for the AI-Powered Adaptive Learning Platform.
 
 Reads the taxonomy from question_catalog.py and the hand-authored questions
-from scripts/question_data/subject_XX.py, then emits the 8 category seed files:
+from scripts/question_data/subject_XX.py, then emits one seed file per
+category:
 
     database/seed_programming_questions.sql
     database/seed_database_questions.sql
@@ -13,6 +14,8 @@ from scripts/question_data/subject_XX.py, then emits the 8 category seed files:
     database/seed_web_questions.sql
     database/seed_cloud_questions.sql
     database/seed_corecs_questions.sql
+    database/seed_biology_questions.sql
+    database/seed_commerce_questions.sql
 
 Each topic must contain exactly 10 BEGINNER + 10 INTERMEDIATE + 10 ADVANCED
 questions (30 total). Marks: BEGINNER=1, INTERMEDIATE=2, ADVANCED=3.
@@ -60,6 +63,8 @@ CATEGORY_FILES = {
     6: "seed_web_questions.sql",
     7: "seed_cloud_questions.sql",
     8: "seed_corecs_questions.sql",
+    9: "seed_biology_questions.sql",
+    10: "seed_commerce_questions.sql",
 }
 
 

@@ -47,7 +47,6 @@
                 <div class="col-6"><label class="form-label">Code</label><input class="form-control" id="sub-code" placeholder="e.g. CS501"></div>
                 <div class="col-6"><label class="form-label">Name</label><input class="form-control" id="sub-name" placeholder="e.g. Operating Systems"></div>
                 <div class="col-6"><label class="form-label">Department</label><input class="form-control" id="sub-dept" placeholder="e.g. CSE"></div>
-                <div class="col-6"><label class="form-label">Semester</label><input class="form-control" id="sub-sem" type="number" min="1" max="8" value="1"></div>
                 <div class="col-6"><label class="form-label">Credit Hours</label><input class="form-control" id="sub-credit" type="number" step="0.5" min="1" max="6" value="3"></div>
                 <div class="col-12"><label class="form-label">Description</label><textarea class="form-control" id="sub-desc" rows="2"></textarea></div>
               </div>
@@ -115,13 +114,12 @@
         const subjects = res.data && (res.data.subjects || Array.isArray(res.data) ? res.data : []);
         if (!subjects.length) { box.innerHTML = `<div class="empty-state">No subjects.</div>`; return; }
         box.innerHTML = `<div class="table-responsive"><table class="table table-hover">
-          <thead><tr><th>Code</th><th>Name</th><th>Dept</th><th>Sem</th><th>Topics</th><th>Questions</th><th></th></tr></thead>
+          <thead><tr><th>Code</th><th>Name</th><th>Dept</th><th>Topics</th><th>Questions</th><th></th></tr></thead>
           <tbody>${subjects.map((s) => `
             <tr>
               <td><span class="badge badge-soft">${UI.safeHtml(s.subjectCode)}</span></td>
               <td class="fw-semibold">${UI.safeHtml(s.subjectName)}</td>
               <td>${UI.safeHtml(s.department || "-")}</td>
-              <td>${s.semester ?? "-"}</td>
               <td>${s.topicCount ?? 0}</td>
               <td>${s.questionCount ?? 0}</td>
               <td class="text-end"><button class="btn btn-sm btn-ghost topic-add-btn" data-id="${s.subjectId}" data-name="${UI.safeHtml(s.subjectName)}"><i class="bi bi-plus-lg me-1"></i>Topic</button></td>
@@ -163,7 +161,6 @@
       document.getElementById("sub-code").value = "";
       document.getElementById("sub-name").value = "";
       document.getElementById("sub-dept").value = "";
-      document.getElementById("sub-sem").value = "1";
       document.getElementById("sub-credit").value = "3";
       document.getElementById("sub-desc").value = "";
       openModal("subject-modal");
@@ -176,7 +173,6 @@
         subjectCode: document.getElementById("sub-code").value.trim(),
         subjectName: document.getElementById("sub-name").value.trim(),
         department: document.getElementById("sub-dept").value.trim(),
-        semester: parseInt(document.getElementById("sub-sem").value) || 1,
         creditHours: parseFloat(document.getElementById("sub-credit").value) || 3,
         description: document.getElementById("sub-desc").value.trim(),
       };

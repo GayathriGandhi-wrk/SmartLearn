@@ -1,4 +1,5 @@
 com\student\performance\security\JwtServiceTest.class
 com\student\performance\PerformanceApplicationTests.class
 com\student\performance\service\impl\AuthServiceImplTest.class
+com\student\performance\service\impl\TopicResourceServiceImplTest.class
 com\student\performance\AuthServiceIntegrationTest.class

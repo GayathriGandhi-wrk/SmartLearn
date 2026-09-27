@@ -56,8 +56,9 @@ public class SubjectServiceImpl implements SubjectService {
 
     @Override
     public List<SubjectDto.SubjectResponse> listSubjects(String department) {
-        List<Subject> subjects = department != null && !department.isBlank()
-                ? subjectRepository.findByDepartmentIgnoreCaseAndActiveTrue(department)
+        String dept = resolveDepartment(department);
+        List<Subject> subjects = dept != null
+                ? subjectRepository.findByDepartmentIgnoreCaseAndActiveTrue(dept)
                 : subjectRepository.findByActiveTrue();
         return subjects.stream()
                 .map(s -> {
@@ -67,6 +68,32 @@ public class SubjectServiceImpl implements SubjectService {
                     return SubjectDto.SubjectResponse.from(s, topics, questions);
                 })
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<String> listDepartments() {
+        return subjectRepository.findDistinctDepartments().stream()
+                .map(String::trim)
+                .distinct()
+                .sorted()
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Resolves the department to filter subjects by. An explicit request value always
+     * wins. Otherwise students are scoped to their own department so "My Subjects"
+     * only lists what they actually study, while admins keep the full catalogue.
+     * Returns null when no filter should be applied.
+     */
+    private String resolveDepartment(String requested) {
+        if (requested != null && !requested.isBlank()) {
+            return requested.trim();
+        }
+        if (securityUtils.isAdmin()) {
+            return null;
+        }
+        String own = securityUtils.getCurrentStudent().getDepartment();
+        return own == null || own.isBlank() ? null : own.trim();
     }
 
     @Override
@@ -85,7 +112,6 @@ public class SubjectServiceImpl implements SubjectService {
         subject.setSubjectName(request.subjectName().trim());
         subject.setDepartment(request.department() == null || request.department().isBlank()
                 ? "CSE" : request.department().trim());
-        subject.setSemester(request.semester() == null ? 1 : request.semester());
         subject.setCreditHours(request.creditHours() == null
                 ? new BigDecimal("3.0") : request.creditHours());
         subject.setDescription(request.description());
@@ -122,17 +148,11 @@ public class SubjectServiceImpl implements SubjectService {
     }
 
     @Override
-    public List<SubjectDto.SubjectResponse> listBySemester(Integer semester) {
-        return subjectRepository.findBySemester(semester).stream()
-                .map(s -> SubjectDto.SubjectResponse.from(s,
-                        topicRepository.findBySubject(s).size(),
-                        questionRepository.findByTopic_Subject_SubjectId(s.getSubjectId()).size()))
-                .collect(Collectors.toList());
-    }
-
-    @Override
     public SubjectDto.PerformanceResponse getPerformance(Long studentId) {
-        List<Subject> subjects = subjectRepository.findByActiveTrue();
+        String dept = resolveDepartment(null);
+        List<Subject> subjects = dept != null
+                ? subjectRepository.findByDepartmentIgnoreCaseAndActiveTrue(dept)
+                : subjectRepository.findByActiveTrue();
         List<SubjectDto.SubjectPerformanceResponse> rows = new ArrayList<>();
         List<SubjectDto.QuestionPerformance> recent = new ArrayList<>();
 

@@ -2,7 +2,6 @@
 """
 Question bank for subject 45: CS101 - Fundamentals of Computing.
 Category: Core Computer Science & Emerging Technologies.
-Semester: 1.
 
 Topics:
   221: Introduction to Computing

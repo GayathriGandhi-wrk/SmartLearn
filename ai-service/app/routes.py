@@ -52,7 +52,7 @@ def _infer_knowledge_gaps(features: dict) -> list:
 
 
 def register_routes(app, model_manager, preprocessor, explainer,
-                    recommender, planner, chatbot):
+                    recommender, planner, chatbot, question_generator):
     """Register all API routes on the Flask app."""
     api = Blueprint("api", __name__, url_prefix="/api")
 
@@ -128,6 +128,23 @@ def register_routes(app, model_manager, preprocessor, explainer,
         context = payload.get("context")
         history = payload.get("history")
         result = chatbot.chat(message, provider=provider, context=context, history=history)
+        result["available"] = True
+        return jsonify(result)
+
+    # ---------------------------------------------------------------- #
+    @api.post("/generate-questions")
+    def generate_questions():
+        """Generate fresh MCQs for a topic a student has just studied."""
+        payload = request.get_json(silent=True) or {}
+        result = question_generator.generate(
+            topic=payload.get("topic", ""),
+            subject=payload.get("subject", ""),
+            resource_title=payload.get("resource_title", ""),
+            difficulty=payload.get("difficulty", "BEGINNER"),
+            count=payload.get("count", 5),
+            avoid=payload.get("avoid") or [],
+            provider=payload.get("provider"),
+        )
         result["available"] = True
         return jsonify(result)
 

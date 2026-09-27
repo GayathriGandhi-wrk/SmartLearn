@@ -31,10 +31,10 @@ public class SubjectController {
         return ResponseEntity.ok(ApiResponse.ok(subjectService.listSubjects(department)));
     }
 
-    @GetMapping("/semester/{semester}")
-    @Operation(summary = "List subjects by semester")
-    public ResponseEntity<ApiResponse<List<SubjectDto.SubjectResponse>>> listBySemester(@PathVariable Integer semester) {
-        return ResponseEntity.ok(ApiResponse.ok(subjectService.listBySemester(semester)));
+    @GetMapping("/departments")
+    @Operation(summary = "List the departments that have subjects")
+    public ResponseEntity<ApiResponse<List<String>>> listDepartments() {
+        return ResponseEntity.ok(ApiResponse.ok(subjectService.listDepartments()));
     }
 
     @GetMapping("/{subjectId}/topics")

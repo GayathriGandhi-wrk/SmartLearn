@@ -5,13 +5,16 @@ C:\Users\HP1\Documents\MINI_PROJECT\AI-Student-Performance-System\spring-service
 C:\Users\HP1\Documents\MINI_PROJECT\AI-Student-Performance-System\spring-service\src\main\java\com\student\performance\dto\PredictionDto.java
 C:\Users\HP1\Documents\MINI_PROJECT\AI-Student-Performance-System\spring-service\src\main\java\com\student\performance\entity\Badge.java
 C:\Users\HP1\Documents\MINI_PROJECT\AI-Student-Performance-System\spring-service\src\main\java\com\student\performance\entity\QuestionAttempt.java
+C:\Users\HP1\Documents\MINI_PROJECT\AI-Student-Performance-System\spring-service\src\main\java\com\student\performance\entity\ResourceView.java
 C:\Users\HP1\Documents\MINI_PROJECT\AI-Student-Performance-System\spring-service\src\main\java\com\student\performance\entity\Analytics.java
 C:\Users\HP1\Documents\MINI_PROJECT\AI-Student-Performance-System\spring-service\src\main\java\com\student\performance\entity\WeakSubject.java
+C:\Users\HP1\Documents\MINI_PROJECT\AI-Student-Performance-System\spring-service\src\main\java\com\student\performance\controller\TopicResourceController.java
 C:\Users\HP1\Documents\MINI_PROJECT\AI-Student-Performance-System\spring-service\src\main\java\com\student\performance\service\ChatbotService.java
 C:\Users\HP1\Documents\MINI_PROJECT\AI-Student-Performance-System\spring-service\src\main\java\com\student\performance\service\RecommendationService.java
 C:\Users\HP1\Documents\MINI_PROJECT\AI-Student-Performance-System\spring-service\src\main\java\com\student\performance\entity\StudyPlan.java
 C:\Users\HP1\Documents\MINI_PROJECT\AI-Student-Performance-System\spring-service\src\main\java\com\student\performance\repository\StudyPlanRepository.java
 C:\Users\HP1\Documents\MINI_PROJECT\AI-Student-Performance-System\spring-service\src\main\java\com\student\performance\repository\WeakSubjectRepository.java
+C:\Users\HP1\Documents\MINI_PROJECT\AI-Student-Performance-System\spring-service\src\main\java\com\student\performance\service\impl\TopicResourceServiceImpl.java
 C:\Users\HP1\Documents\MINI_PROJECT\AI-Student-Performance-System\spring-service\src\main\java\com\student\performance\entity\Role.java
 C:\Users\HP1\Documents\MINI_PROJECT\AI-Student-Performance-System\spring-service\src\main\java\com\student\performance\service\impl\AnalyticsServiceImpl.java
 C:\Users\HP1\Documents\MINI_PROJECT\AI-Student-Performance-System\spring-service\src\main\java\com\student\performance\dto\PlannerDto.java
@@ -20,6 +23,7 @@ C:\Users\HP1\Documents\MINI_PROJECT\AI-Student-Performance-System\spring-service
 C:\Users\HP1\Documents\MINI_PROJECT\AI-Student-Performance-System\spring-service\src\main\java\com\student\performance\repository\UserRepository.java
 C:\Users\HP1\Documents\MINI_PROJECT\AI-Student-Performance-System\spring-service\src\main\java\com\student\performance\service\SubjectService.java
 C:\Users\HP1\Documents\MINI_PROJECT\AI-Student-Performance-System\spring-service\src\main\java\com\student\performance\service\AdminService.java
+C:\Users\HP1\Documents\MINI_PROJECT\AI-Student-Performance-System\spring-service\src\main\java\com\student\performance\dto\TopicResourceDto.java
 C:\Users\HP1\Documents\MINI_PROJECT\AI-Student-Performance-System\spring-service\src\main\java\com\student\performance\service\GamificationService.java
 C:\Users\HP1\Documents\MINI_PROJECT\AI-Student-Performance-System\spring-service\src\main\java\com\student\performance\dto\SubjectDto.java
 C:\Users\HP1\Documents\MINI_PROJECT\AI-Student-Performance-System\spring-service\src\main\java\com\student\performance\service\impl\AdminServiceImpl.java
@@ -39,6 +43,7 @@ C:\Users\HP1\Documents\MINI_PROJECT\AI-Student-Performance-System\spring-service
 C:\Users\HP1\Documents\MINI_PROJECT\AI-Student-Performance-System\spring-service\src\main\java\com\student\performance\service\NotificationService.java
 C:\Users\HP1\Documents\MINI_PROJECT\AI-Student-Performance-System\spring-service\src\main\java\com\student\performance\entity\LoginHistory.java
 C:\Users\HP1\Documents\MINI_PROJECT\AI-Student-Performance-System\spring-service\src\main\java\com\student\performance\repository\PracticeQuestionRepository.java
+C:\Users\HP1\Documents\MINI_PROJECT\AI-Student-Performance-System\spring-service\src\main\java\com\student\performance\repository\ResourceViewRepository.java
 C:\Users\HP1\Documents\MINI_PROJECT\AI-Student-Performance-System\spring-service\src\main\java\com\student\performance\entity\Subject.java
 C:\Users\HP1\Documents\MINI_PROJECT\AI-Student-Performance-System\spring-service\src\main\java\com\student\performance\controller\PlannerController.java
 C:\Users\HP1\Documents\MINI_PROJECT\AI-Student-Performance-System\spring-service\src\main\java\com\student\performance\repository\StudentRepository.java
@@ -52,6 +57,7 @@ C:\Users\HP1\Documents\MINI_PROJECT\AI-Student-Performance-System\spring-service
 C:\Users\HP1\Documents\MINI_PROJECT\AI-Student-Performance-System\spring-service\src\main\java\com\student\performance\repository\StudyPlanSessionRepository.java
 C:\Users\HP1\Documents\MINI_PROJECT\AI-Student-Performance-System\spring-service\src\main\java\com\student\performance\service\impl\QuestionServiceImpl.java
 C:\Users\HP1\Documents\MINI_PROJECT\AI-Student-Performance-System\spring-service\src\main\java\com\student\performance\service\FileStorageService.java
+C:\Users\HP1\Documents\MINI_PROJECT\AI-Student-Performance-System\spring-service\src\main\java\com\student\performance\service\TopicResourceService.java
 C:\Users\HP1\Documents\MINI_PROJECT\AI-Student-Performance-System\spring-service\src\main\java\com\student\performance\config\SecurityConfig.java
 C:\Users\HP1\Documents\MINI_PROJECT\AI-Student-Performance-System\spring-service\src\main\java\com\student\performance\controller\TestController.java
 C:\Users\HP1\Documents\MINI_PROJECT\AI-Student-Performance-System\spring-service\src\main\java\com\student\performance\repository\TopicRepository.java

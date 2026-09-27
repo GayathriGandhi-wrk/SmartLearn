@@ -75,6 +75,9 @@ app.use((req, res, next) => {
 app.use("/api/auth", require("./routes/auth.routes"));
 app.use("/api/proxy", require("./routes/proxy.routes"));
 app.use("/api/upload", require("./routes/upload.routes"));
+// Learn module: real YouTube video IDs, because YouTube no longer supports
+// search embeds. Mounted before the catch-all proxy so it is never forwarded.
+app.use("/api/videos", require("./routes/video.routes"));
 
 // Health check
 app.get("/api/health", (req, res) => {

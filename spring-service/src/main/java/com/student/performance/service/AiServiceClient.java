@@ -34,4 +34,12 @@ public interface AiServiceClient {
      * Chatbot request routed to Gemini or OpenAI.
      */
     Map<String, Object> chat(String message, String provider, java.util.List<Map<String, String>> history);
+
+    /**
+     * Generates fresh MCQs for a topic the student just studied. The
+     * {@code avoid} list holds questions the student already has, so the model
+     * does not repeat them.
+     */
+    Map<String, Object> generateQuestions(String topic, String subject, String resourceTitle,
+                                          String difficulty, int count, java.util.List<String> avoid);
 }

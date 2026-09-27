@@ -2,11 +2,13 @@ com\student\performance\repository\RecommendationRepository.class
 com\student\performance\service\impl\TestServiceImpl.class
 com\student\performance\dto\PlannerDto.class
 com\student\performance\entity\User.class
+com\student\performance\dto\TopicResourceDto$AnswerRequest.class
 com\student\performance\service\impl\PlannerServiceImpl$1.class
 com\student\performance\entity\WeakSubject.class
 com\student\performance\dto\StudentDto$StudentProfileResponse.class
 com\student\performance\entity\Analytics.class
 com\student\performance\dto\AuthDto$ChangePasswordRequest.class
+com\student\performance\service\impl\TopicResourceServiceImpl$1.class
 com\student\performance\controller\QuestionController.class
 com\student\performance\service\impl\OtpServiceImpl.class
 com\student\performance\entity\Prediction.class
@@ -17,6 +19,7 @@ com\student\performance\repository\UserRepository.class
 com\student\performance\service\impl\AiServiceClientImpl.class
 com\student\performance\service\StudentService.class
 com\student\performance\entity\Prediction$RiskLevel.class
+com\student\performance\dto\TopicResourceDto$ViewResponse.class
 com\student\performance\dto\SubjectDto$TopicResponse.class
 com\student\performance\exception\DuplicateResourceException.class
 com\student\performance\service\impl\PlannerServiceImpl$Slot.class
@@ -24,6 +27,7 @@ com\student\performance\dto\AdminDto$QuestionImportRequest.class
 com\student\performance\dto\AuthDto$RegisterRequest.class
 com\student\performance\service\QuestionService.class
 com\student\performance\dto\PredictionDto$ChatbotRequest.class
+com\student\performance\repository\ResourceViewRepository.class
 com\student\performance\repository\RewardRepository.class
 com\student\performance\dto\PredictionDto$ChatbotResponse.class
 com\student\performance\dto\TestDto$TestListItem.class
@@ -65,6 +69,8 @@ com\student\performance\dto\StudentDto$ProfileUpdateRequest.class
 com\student\performance\entity\Reward.class
 com\student\performance\service\impl\PlannerServiceImpl.class
 com\student\performance\util\ScheduledTasks.class
+com\student\performance\controller\TopicResourceController.class
+com\student\performance\entity\ResourceView.class
 com\student\performance\repository\TestQuestionRepository.class
 com\student\performance\service\impl\FileStorageServiceImpl.class
 com\student\performance\dto\StudentDto.class
@@ -90,11 +96,13 @@ com\student\performance\controller\NotificationController.class
 com\student\performance\service\impl\PredictionServiceImpl.class
 com\student\performance\entity\Recommendation.class
 com\student\performance\controller\AnalyticsController.class
+com\student\performance\dto\TopicResourceDto$GenerateRequest.class
 com\student\performance\repository\QuestionAttemptRepository.class
 com\student\performance\service\impl\RecommendationServiceImpl.class
 com\student\performance\service\AdminService.class
 com\student\performance\dto\SubjectDto$QuestionPerformance.class
 com\student\performance\dto\StudentDto$AcademicDetailsRequest.class
+com\student\performance\dto\TopicResourceDto$AnswerResponse.class
 com\student\performance\config\OpenApiConfig.class
 com\student\performance\dto\PlannerDto$StudyPlanRequest.class
 com\student\performance\service\AiServiceClient.class
@@ -135,9 +143,11 @@ com\student\performance\repository\KnowledgeGapRepository.class
 com\student\performance\service\OtpService.class
 com\student\performance\service\PlannerService.class
 com\student\performance\entity\Role.class
+com\student\performance\dto\TopicResourceDto$GenerateResponse.class
 com\student\performance\service\impl\PlannerServiceImpl$SelectedTopic.class
 com\student\performance\dto\QuestionDto$AttemptRequest.class
 com\student\performance\entity\StudyPlanSession$Status.class
+com\student\performance\entity\ResourceView$ResourceType.class
 com\student\performance\repository\TestResultRepository.class
 com\student\performance\service\impl\ChatbotServiceImpl.class
 com\student\performance\dto\PredictionDto$KnowledgeGapDto.class
@@ -159,6 +169,8 @@ com\student\performance\repository\QuestionRepository.class
 com\student\performance\entity\StudyPlan$Status.class
 com\student\performance\dto\AuthDto$VerifyOtpRequest.class
 com\student\performance\dto\PlannerDto$DistributionEntry.class
+com\student\performance\dto\TopicResourceDto.class
+com\student\performance\service\TopicResourceService.class
 com\student\performance\dto\PlannerDto$SubjectSelection.class
 com\student\performance\service\impl\PlannerServiceImpl$SessionSpec.class
 com\student\performance\entity\TestQuestion.class
@@ -167,7 +179,9 @@ com\student\performance\dto\PredictionDto$PredictionRequest.class
 com\student\performance\dto\TestDto$StartTestRequest.class
 com\student\performance\controller\AdminController.class
 com\student\performance\dto\PredictionDto.class
+com\student\performance\dto\TopicResourceDto$GeneratedQuestion.class
 com\student\performance\config\AppProperties$Upload.class
+com\student\performance\dto\TopicResourceDto$ViewRequest.class
 com\student\performance\entity\StudyPlanSession.class
 com\student\performance\entity\KnowledgeGap$GapLevel.class
 com\student\performance\dto\PlannerDto$AvailableTime.class
@@ -201,6 +215,8 @@ com\student\performance\dto\AnalyticsDto$TrendPoint.class
 com\student\performance\entity\ChatHistory.class
 com\student\performance\repository\ChatHistoryRepository.class
 com\student\performance\entity\Notification.class
+com\student\performance\entity\Question$Source.class
+com\student\performance\service\impl\TopicResourceServiceImpl.class
 com\student\performance\dto\AuthDto$ResetPasswordRequest.class
 com\student\performance\dto\AnalyticsDto$SubjectStudyHours.class
 com\student\performance\exception\BadRequestException.class

@@ -10,6 +10,7 @@ Modules:
   - Weak subject detection, knowledge gap detection
   - Recommendation engine, study planner
   - AI Chatbot (Gemini / OpenAI / rule-based fallback)
+  - Topic question generation (Gemini / OpenAI / template fallback)
 """
 
 import os
@@ -22,6 +23,7 @@ from app.preprocessing import DataPreprocessor
 from app.models import ModelManager
 from app.recommendation import RecommendationEngine, StudyPlanner
 from app.chatbot import ChatbotService
+from app.question_generator import QuestionGeneratorService
 from app.explainability import Explainer
 
 logging.basicConfig(level=logging.INFO,
@@ -40,6 +42,7 @@ def create_app() -> Flask:
     recommender = RecommendationEngine()
     planner = StudyPlanner()
     chatbot = ChatbotService()
+    question_generator = QuestionGeneratorService()
 
     # Ensure models are ready on startup (train once from synthetic dataset)
     model_manager.ensure_models(preprocessor)
@@ -47,7 +50,7 @@ def create_app() -> Flask:
     # Register blueprints / routes
     from app.routes import register_routes
     register_routes(app, model_manager, preprocessor, explainer,
-                    recommender, planner, chatbot)
+                    recommender, planner, chatbot, question_generator)
 
     @app.get("/")
     def index():

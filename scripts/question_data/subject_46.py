@@ -2,7 +2,6 @@
 """
 Question bank for subject 46: CORE106 - Compiler Design.
 Category: Core Computer Science & Emerging Technologies.
-Semester: 6.
 
 Topics:
   226: Lexical Analysis

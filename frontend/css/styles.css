@@ -207,6 +207,38 @@ a:hover { color: var(--primary-dark); }
 .empty-state { text-align: center; padding: 3rem 1rem; color: var(--text-muted); }
 .empty-state .icon { font-size: 3rem; margin-bottom: 0.75rem; }
 
+.min-w-0 { min-width: 0; }
+.topic-resources-panel { border: 1px solid var(--border); box-shadow: var(--shadow); animation: fadeUp 0.3s ease; }
+.resource-card {
+  display: block; height: 100%; padding: 0.65rem 0.75rem; text-decoration: none;
+  color: var(--text); background: var(--bg); border: 1px solid var(--border);
+  border-radius: 10px; transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.resource-card:hover { transform: translateY(-2px); border-color: var(--primary); box-shadow: var(--shadow); color: var(--text); }
+.resource-card .bi { color: var(--primary); }
+.resource-card:hover .bi { color: var(--primary-dark); }
+
+.learned-marker {
+  padding: 0.75rem; border: 1px dashed var(--primary); border-radius: 10px;
+  background: color-mix(in srgb, var(--primary) 6%, transparent);
+}
+.learned-question {
+  padding: 0.75rem; margin-bottom: 0.6rem; border: 1px solid var(--border);
+  border-radius: 10px; background: var(--bg);
+}
+.learned-question.is-correct { border-color: var(--success); }
+.learned-question.is-wrong { border-color: var(--danger); }
+.learned-option {
+  display: flex; align-items: flex-start; gap: 0.4rem; padding: 0.4rem 0.55rem;
+  border: 1px solid var(--border); border-radius: 8px; cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+.learned-option:hover { background: color-mix(in srgb, var(--primary) 6%, transparent); }
+.learned-option.is-answer { border-color: var(--success); background: color-mix(in srgb, var(--success) 12%, transparent); }
+.learned-option.is-wrong { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent); }
+.learned-option:has(input:disabled) { cursor: default; }
+.learned-option:has(input:disabled):hover { background: inherit; }
+
 .risk-low { color: var(--secondary); }
 .risk-medium { color: var(--warning); }
 .risk-high { color: var(--danger); }
@@ -219,3 +251,53 @@ a:hover { color: var(--primary-dark); }
   .menu-toggle { display: inline-flex !important; }
 }
 .menu-toggle { display: none; }
+
+/* Learn module */
+.learn-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.85rem;
+}
+.learn-frame-wrap {
+  position: relative;
+  background: var(--card, #fff);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  aspect-ratio: 16 / 9;
+  min-height: 320px;
+}
+.learn-frame { width: 100%; height: 100%; border: 0; display: block; }
+.learn-frame-wrap.is-blocked::after {
+  content: "This site will not open inside the page. Use “Open in new tab” above.";
+  position: absolute;
+  inset: auto 0 0 0;
+  padding: 0.6rem 0.9rem;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+}
+.learn-hint { font-size: 0.78rem; margin: 0.6rem 0 0.9rem; }
+.learn-frame-wrap .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; }
+.learn-frame-wrap .empty-state .bi { font-size: 2.5rem; }
+.video-card {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  padding: 0;
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.video-card:hover { transform: translateY(-2px); border-color: var(--primary); box-shadow: var(--shadow); }
+.video-card:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.video-thumb { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; display: block; background: var(--bg); }
+
+@media (max-width: 576px) {
+  .learn-frame-wrap { min-height: 220px; }
+}

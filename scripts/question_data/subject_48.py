@@ -2,7 +2,6 @@
 """
 Question bank for subject 48: CORE107 - Software Testing & Quality Assurance.
 Category: Core Computer Science & Emerging Technologies.
-Semester: 6.
 
 Topics:
   236: Testing Fundamentals

@@ -2,7 +2,6 @@
 """
 Question bank for subject 55: AI107 - Advanced Machine Learning.
 Category: Artificial Intelligence & Data Science.
-Semester: 7.
 
 Topics (match question_catalog.py):
   271: Ensemble Methods

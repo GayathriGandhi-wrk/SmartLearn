@@ -16,7 +16,7 @@ router.post(
       .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&]).{8,}$/)
       .withMessage("Password must contain uppercase, lowercase, digit and special character"),
     body("department").notEmpty().withMessage("Department is required"),
-    body("semester").isInt({ min: 1, max: 8 }).withMessage("Semester must be 1-8"),
+    body("semester").optional().isInt({ min: 1, max: 8 }).withMessage("Semester must be 1-8"),
     body("cgpa").optional().isFloat({ min: 0, max: 10 }).withMessage("CGPA must be 0-10"),
   ]),
   authController.register

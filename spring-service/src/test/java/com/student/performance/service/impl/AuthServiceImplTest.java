@@ -46,7 +46,7 @@ class AuthServiceImplTest {
     void registerRejectsDuplicateEmail() {
         when(userRepository.existsByEmail("dup@test.com")).thenReturn(true);
         AuthDto.RegisterRequest request = new AuthDto.RegisterRequest(
-                "Dup User", "dup@test.com", "9876543210", "Test@1234", "CS", 3, 8.0);
+                "Dup User", "dup@test.com", "9876543210", "Test@1234", "CS", 8.0);
         assertThatThrownBy(() -> authService.register(request))
                 .isInstanceOf(com.student.performance.exception.DuplicateResourceException.class);
         verify(userRepository, never()).save(any());
@@ -72,7 +72,7 @@ class AuthServiceImplTest {
         when(jwtService.generateToken(anyString(), anyLong(), anyString(), anyBoolean())).thenReturn("token");
 
         AuthDto.RegisterRequest request = new AuthDto.RegisterRequest(
-                "New User", "new@test.com", "9876543210", "Test@1234", "CS", 3, 8.0);
+                "New User", "new@test.com", "9876543210", "Test@1234", "CS", 8.0);
         AuthDto.AuthResponse response = authService.register(request);
         assertThat(response.email()).isEqualTo("new@test.com");
         assertThat(response.token()).isEqualTo("token");

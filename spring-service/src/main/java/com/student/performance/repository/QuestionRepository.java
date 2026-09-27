@@ -32,4 +32,19 @@ public interface QuestionRepository extends JpaRepository<Question, Long> {
 
     @Query("SELECT COUNT(q) FROM Question q WHERE q.active = true")
     long countActive();
+
+    /** Questions in a topic the student has already been served, for de-duplication. */
+    @Query("""
+            SELECT q.questionText FROM Question q
+              JOIN PracticeQuestion p ON p.question = q
+             WHERE p.student.id = :studentId AND q.topic.id = :topicId
+            """)
+    List<String> findServedTextsForStudent(@Param("studentId") Long studentId,
+                                           @Param("topicId") Long topicId);
+
+    /** Any question in the DB with the same normalised text, so the pool stays clean. */
+    boolean existsByContentHash(String contentHash);
+
+    @Query("SELECT q FROM Question q WHERE q.topic.id = :topicId AND q.active = true ORDER BY RAND()")
+    List<Question> findByTopicActive(@Param("topicId") Long topicId);
 }

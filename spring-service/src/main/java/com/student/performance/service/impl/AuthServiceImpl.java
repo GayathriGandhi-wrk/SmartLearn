@@ -86,7 +86,6 @@ public class AuthServiceImpl implements AuthService {
         student.setUser(user);
         student.setStudentCode(generateStudentCode(request.department()));
         student.setDepartment(request.department());
-        student.setSemester(request.semester());
         student.setBatch(String.valueOf(LocalDateTime.now().getYear()));
         student.setCgpa(request.cgpa() == null ? null : BigDecimal.valueOf(request.cgpa()));
         student.setEnrollmentYear(LocalDateTime.now().getYear());

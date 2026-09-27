@@ -8,13 +8,13 @@ public interface SubjectService {
 
     List<SubjectDto.SubjectResponse> listSubjects(String department);
 
+    List<String> listDepartments();
+
     SubjectDto.SubjectResponse createSubject(SubjectDto.SubjectRequest request);
 
     SubjectDto.TopicResponse createTopic(Long subjectId, SubjectDto.TopicRequest request);
 
     List<SubjectDto.TopicResponse> listTopics(Long subjectId);
-
-    List<SubjectDto.SubjectResponse> listBySemester(Integer semester);
 
     SubjectDto.PerformanceResponse getPerformance(Long studentId);
 

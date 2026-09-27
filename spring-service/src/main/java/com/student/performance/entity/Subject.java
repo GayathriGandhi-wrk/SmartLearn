@@ -31,8 +31,6 @@ public class Subject {
     @Column(length = 100)
     private String department;
 
-    private Integer semester;
-
     @Column(name = "credit_hours", nullable = false, precision = 3, scale = 1)
     private BigDecimal creditHours = new BigDecimal("3.0");
 

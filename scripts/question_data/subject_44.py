@@ -2,7 +2,6 @@
 """
 Question bank for subject 44: PROG106 - Computer Fundamentals & Programming Basics.
 Category: Programming & Software Development.
-Semester: 1.
 
 Topics:
   216: Computer Hardware & Organization

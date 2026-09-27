@@ -2,7 +2,6 @@
 """
 Question bank for subject 47: NET106 - Distributed Systems.
 Category: Computer Networks.
-Semester: 6.
 
 Topics:
   231: Distributed Architectures

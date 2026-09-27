@@ -21,7 +21,7 @@ All auth endpoints are proxied by the Node gateway (port 3000) to Spring Boot (p
 
 | Method | Path | Auth | Body | Description |
 |--------|------|------|------|-------------|
-| POST | `/register` | - | `fullName, email, phone, password, department, semester, cgpa?` | Register student |
+| POST | `/register` | - | `fullName, email, phone, password, department, cgpa?` | Register student |
 | POST | `/login` | - | `email, password, rememberMe?` | Login, returns JWT + user fields |
 | GET | `/me` | ✓ | - | Current authenticated user profile |
 | POST | `/logout` | ✓ | - | Invalidate session |
@@ -82,7 +82,6 @@ cannot deliver email (SMTP not configured) it echoes the code back as `devOtp`:
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | GET | `/` | ✓ | List subjects (with topic/question counts) |
-| GET | `/semester/{semester}` | ✓ | Subjects for a semester |
 | GET | `/{subjectId}/topics` | ✓ | Topics of a subject |
 | GET | `/performance` | ✓ | Subject performance + recent attempts |
 | POST | `/marks` | ✓ | Submit marks/attendance for prediction features |

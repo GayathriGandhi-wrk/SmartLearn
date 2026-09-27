@@ -2,7 +2,6 @@
 """
 Question bank for subject 56: CORE110 - Capstone Project.
 Category: Core Computer Science & Emerging Technologies.
-Semester: 8.
 
 Topics:
   276: Project Planning & Scope

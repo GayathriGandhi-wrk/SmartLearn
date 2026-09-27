@@ -123,6 +123,7 @@
       { header: "Main", items: [
         { label: "Dashboard", icon: "speedometer2", href: "/pages/student/dashboard.html" },
         { label: "My Subjects", icon: "book", href: "/pages/student/subjects.html" },
+        { label: "Learn", icon: "collection-play", href: "/pages/student/learn.html" },
         { label: "Question Bank", icon: "card-text", href: "/pages/student/question-bank.html" },
       ]},
       { header: "Assessments", items: [

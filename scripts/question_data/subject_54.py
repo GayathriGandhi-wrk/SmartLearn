@@ -2,7 +2,6 @@
 """
 Question bank for subject 54: CORE109 - Project Work - Phase I.
 Category: Core Computer Science & Emerging Technologies.
-Semester: 7.
 
 Topics:
   266: Problem Identification

@@ -52,7 +52,7 @@ class AuthServiceIntegrationTest {
     void registerAndLoginRoundTrip() {
         AuthDto.RegisterRequest register = new AuthDto.RegisterRequest(
                 "Test Student", "test.student@example.com", "9876543210",
-                "Test@1234", "Computer Science", 3, 8.5);
+                "Test@1234", "Computer Science", 8.5);
         AuthDto.AuthResponse response = authService.register(register);
         assertThat(response).isNotNull();
         assertThat(response.token()).isNotBlank();
@@ -80,7 +80,7 @@ class AuthServiceIntegrationTest {
         // Register a fresh user
         AuthDto.RegisterRequest register = new AuthDto.RegisterRequest(
                 "Otp Tester", "otp.test@example.com", "9876543211",
-                "Otp@1234", "Computer Science", 2, 7.5);
+                "Otp@1234", "Computer Science", 7.5);
         authService.register(register);
 
         // Send a password-reset OTP (Spring generates + stores it)
@@ -109,7 +109,7 @@ class AuthServiceIntegrationTest {
     void meReturnsCurrentUserProfile() {
         AuthDto.RegisterRequest register = new AuthDto.RegisterRequest(
                 "Me Tester", "me.test@example.com", "9876543212",
-                "Me@1234", "Information Technology", 4, 8.0);
+                "Me@1234", "Information Technology", 8.0);
         AuthDto.AuthResponse response = authService.register(register);
 
         AuthDto.MeResponse me = authService.me(response.userId());
@@ -124,7 +124,7 @@ class AuthServiceIntegrationTest {
     void changePasswordRejectsWrongOldPassword() {
         AuthDto.RegisterRequest register = new AuthDto.RegisterRequest(
                 "Chg Tester", "chg.test@example.com", "9876543213",
-                "Chg@1234", "Computer Science", 3, 6.5);
+                "Chg@1234", "Computer Science", 6.5);
         authService.register(register);
 
         try {

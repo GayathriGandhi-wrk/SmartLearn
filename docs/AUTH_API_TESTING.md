@@ -18,8 +18,7 @@ curl -X POST http://localhost:3000/api/auth/register \
     "phone": "9876543210",
     "password": "Ravi@1234",
     "department": "Computer Science",
-    "semester": 3,
-    "cgpa": 7.8
+        "cgpa": 7.8
   }'
 ```
 
@@ -49,7 +48,7 @@ curl -X POST http://localhost:3000/api/auth/register \
 ```bash
 curl -X POST http://localhost:3000/api/auth/register \
   -H "Content-Type: application/json" \
-  -d '{"fullName":"Ravi Kumar","email":"ravi@example.com","phone":"9876543210","password":"123","department":"CS","semester":3}'
+  -d '{"fullName":"Ravi Kumar","email":"ravi@example.com","phone":"9876543210","password":"123","department":"CS"}'
 ```
 
 ```json
@@ -69,7 +68,7 @@ curl -X POST http://localhost:3000/api/auth/register \
 ```bash
 curl -X POST http://localhost:3000/api/auth/register \
   -H "Content-Type: application/json" \
-  -d '{"fullName":"Ravi Kumar","email":"student1@studentai.com","phone":"9876543210","password":"Ravi@1234","department":"CS","semester":3}'
+  -d '{"fullName":"Ravi Kumar","email":"student1@studentai.com","phone":"9876543210","password":"Ravi@1234","department":"CS"}'
 ```
 
 ---
@@ -162,8 +161,7 @@ curl -X GET http://localhost:3000/api/auth/me \
     "studentId": 1,
     "studentCode": "STU2024001",
     "department": "Computer Science",
-    "semester": 5,
-    "cgpa": 8.4,
+        "cgpa": 8.4,
     "profileImage": null
   }
 }
@@ -273,7 +271,7 @@ EMAIL="demo.test.$(date +%s)@example.com"
 
 echo "== Register =="
 curl -s -X POST $BASE/auth/register -H "Content-Type: application/json" \
-  -d "{\"fullName\":\"Demo Tester\",\"email\":\"$EMAIL\",\"phone\":\"9876500000\",\"password\":\"Demo@1234\",\"department\":\"Computer Science\",\"semester\":2}"
+  -d "{\"fullName\":\"Demo Tester\",\"email\":\"$EMAIL\",\"phone\":\"9876500000\",\"password\":\"Demo@1234\",\"department\":\"Computer Science\"}"
 
 echo; echo "== Send OTP =="
 OTP=$(curl -s -X POST $BASE/auth/send-otp -H "Content-Type: application/json" \

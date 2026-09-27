@@ -2,7 +2,6 @@
 """
 Question bank for subject 57: CORE111 - Professional Ethics & IPR.
 Category: Core Computer Science & Emerging Technologies.
-Semester: 8.
 
 Topics:
   281: Professional Ethics

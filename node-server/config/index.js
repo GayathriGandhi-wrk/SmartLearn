@@ -25,5 +25,14 @@ module.exports = {
     maxMb: parseInt(process.env.MAX_UPLOAD_MB || "5", 10),
   },
 
+  // YouTube Data API - used by the Learn module to turn a topic into real
+  // video IDs. YouTube no longer allows search embeds, so we must search via
+  // the API and embed the specific video the student picks.
+  youtube: {
+    apiKey: process.env.YOUTUBE_API_KEY || "",
+    timeoutMs: parseInt(process.env.YOUTUBE_TIMEOUT_MS || "10000", 10),
+    maxResults: parseInt(process.env.YOUTUBE_MAX_RESULTS || "8", 10),
+  },
+
   corsOrigins: (process.env.CORS_ORIGINS || "http://localhost:3000").split(","),
 };

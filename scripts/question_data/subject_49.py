@@ -2,7 +2,6 @@
 """
 Question bank for subject 49: DBMS106 - Data Warehousing & Data Mining.
 Category: Database Management.
-Semester: 6.
 
 Topics:
   241: Warehouse Architecture

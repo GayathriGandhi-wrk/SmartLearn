@@ -14,6 +14,9 @@
   <script src="/js/theme.js"></script>
   <script src="/js/api-client.js"></script>
   <script src="/js/layout.js"></script>
+  <script src="/js/topic-resources.js"></script>
+  <script src="/js/video-picker.js"></script>
+  <script src="/js/topic-quiz.js"></script>
   <script>
     ThemeManager.init();
     if (!API.isAuthenticated()) window.location.href = "/pages/auth/login.html";
@@ -27,25 +30,77 @@
           <h5 class="fw-bold mb-1">Subjects &amp; Topics</h5>
           <span class="text-muted small">Browse your subjects and their topics</span>
         </div>
-        <button class="btn btn-outline-primary" id="refresh-btn"><i class="bi bi-arrow-clockwise me-2"></i>Refresh Performance</button>
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+          <label class="form-label mb-0 small text-muted" for="dept-select">Department</label>
+          <select class="form-select form-select-sm w-auto" id="dept-select">
+            <option value="">Loading...</option>
+          </select>
+          <button class="btn btn-outline-primary" id="refresh-btn"><i class="bi bi-arrow-clockwise me-2"></i>Refresh Performance</button>
+        </div>
+      </div>
+      <div class="alert alert-light border small d-flex align-items-center gap-2 mb-3" id="dept-summary" style="display:none">
+        <i class="bi bi-mortarboard text-primary"></i>
+        <span id="dept-summary-text"></span>
       </div>
       <div class="row g-3" id="subject-cards"><div class="col-12"><div class="spinner"></div></div></div>`;
 
+    const deptSelect = document.getElementById("dept-select");
+    const deptSummary = document.getElementById("dept-summary");
+    const deptSummaryText = document.getElementById("dept-summary-text");
+    const myDepartment = (API.getUser() || {}).department || "";
+
+    async function loadDepartments() {
+      let departments = [];
+      try {
+        const res = await API.get("/subjects/departments");
+        departments = (res.data && (res.data.departments || (Array.isArray(res.data) ? res.data : []))) || [];
+      } catch (e) {
+        departments = myDepartment ? [myDepartment] : [];
+      }
+      if (!departments.length && myDepartment) departments = [myDepartment];
+
+      const options = departments
+        .map((d) => `<option value="${UI.safeHtml(d)}">${UI.safeHtml(d)}</option>`)
+        .join("");
+      deptSelect.innerHTML = `<option value="">All departments</option>${options}`;
+
+      if (myDepartment) {
+        const match = departments.find((d) => d.toLowerCase() === myDepartment.toLowerCase());
+        deptSelect.value = match || myDepartment;
+        if (!match) deptSelect.insertAdjacentHTML("afterbegin", `<option value="${UI.safeHtml(myDepartment)}">${UI.safeHtml(myDepartment)}</option>`);
+      }
+    }
+
+    function currentDepartment() {
+      return deptSelect.value;
+    }
+
     async function loadSubjects() {
       const box = document.getElementById("subject-cards");
+      const dept = currentDepartment();
+      box.innerHTML = `<div class="col-12"><div class="spinner"></div></div>`;
+
+      if (dept) {
+        deptSummary.style.display = "";
+        deptSummaryText.innerHTML = `Showing subjects and topics for <strong>${UI.safeHtml(dept)}</strong>`;
+      } else {
+        deptSummary.style.display = "none";
+        deptSummaryText.textContent = "";
+      }
+
       try {
-        const res = await API.get("/subjects");
+        const qs = dept ? `?department=${encodeURIComponent(dept)}` : "";
+        const res = await API.get("/subjects" + qs);
         const subjects = res.data && (res.data.subjects || Array.isArray(res.data) ? res.data : []);
         if (!subjects.length) {
-          box.innerHTML = `<div class="col-12"><div class="empty-state"><i class="bi bi-book"></i><p>No subjects available.</p></div></div>`;
+          box.innerHTML = `<div class="col-12"><div class="empty-state"><i class="bi bi-book"></i><p>No subjects available${dept ? " for " + UI.safeHtml(dept) : ""}.</p></div></div>`;
           return;
         }
         box.innerHTML = subjects.map((s) => `
           <div class="col-md-6 col-xl-4">
             <div class="card card-hover h-100 p-3">
-              <div class="d-flex justify-content-between align-items-start mb-2">
+              <div class="mb-2">
                 <span class="badge badge-soft">${UI.safeHtml(s.subjectCode)}</span>
-                <span class="text-muted small">Sem ${s.semester}</span>
               </div>
               <h6 class="fw-bold mb-1">${UI.safeHtml(s.subjectName)}</h6>
               <p class="text-muted small mb-2">${UI.safeHtml(s.description || "")}</p>
@@ -53,57 +108,371 @@
                 <span><i class="bi bi-collection me-1"></i>${s.topicCount} topics</span>
                 <span><i class="bi bi-card-text me-1"></i>${s.questionCount} questions</span>
               </div>
-              <button class="btn btn-sm btn-ghost w-100" data-subject-id="${s.subjectId}" data-subject-name="${UI.safeHtml(s.subjectName)}">
+              <button class="btn btn-sm btn-ghost w-100" data-subject-id="${s.subjectId}" data-subject-name="${UI.safeHtml(s.subjectName)}" data-subject-code="${UI.safeHtml(s.subjectCode || "")}">
                 <i class="bi bi-eye me-1"></i>View Topics
               </button>
             </div>
           </div>`).join("");
 
         box.querySelectorAll("[data-subject-id]").forEach((btn) =>
-          btn.addEventListener("click", () => showTopics(btn.dataset.subjectId, btn.dataset.subjectName))
+          btn.addEventListener("click", () => showTopics(btn.dataset.subjectId, btn.dataset.subjectName, btn.dataset.subjectCode))
         );
       } catch (e) {
         box.innerHTML = `<div class="col-12"><div class="empty-state"><i class="bi bi-exclamation-circle"></i><p>${UI.safeHtml(e.message)}</p></div></div>`;
       }
     }
 
-    function showTopics(subjectId, subjectName) {
+    let currentSubject = { id: null, name: "", code: "" };
+    let topicCache = [];
+
+    const attr = (v) => UI.safeHtml(v == null ? "" : String(v)).replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+
+    const diffClass = { BEGINNER: "badge-soft-green", INTERMEDIATE: "badge-soft-orange", ADVANCED: "badge-soft-red" };
+    const SOURCE_ICON = {
+      YouTube: "bi-youtube",
+      W3Schools: "bi-code-square",
+      "MDN Web Docs": "bi-book",
+      MDN: "bi-book",
+      GeeksforGeeks: "bi-lightbulb",
+      JavaTpoint: "bi-mortarboard",
+      TutorialsPoint: "bi-mortarboard",
+      Wikipedia: "bi-globe",
+      Coursera: "bi-mortarboard-fill",
+    };
+
+    function showTopics(subjectId, subjectName, subjectCode) {
+      currentSubject = { id: subjectId, name: subjectName || "", code: subjectCode || "" };
       const box = document.getElementById("subject-cards");
-      box.innerHTML = `<div class="col-12"><div class="spinner"></div></div>`;
       box.innerHTML = `
         <div class="col-12">
-          <div class="d-flex align-items-center gap-2 mb-3">
-            <button class="btn btn-ghost btn-sm" onclick="loadSubjects()"><i class="bi bi-arrow-left me-1"></i>Back</button>
+          <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+            <button class="btn btn-ghost btn-sm" id="back-btn"><i class="bi bi-arrow-left me-1"></i>Back</button>
             <h5 class="fw-bold mb-0">${UI.safeHtml(subjectName)} - Topics</h5>
+            <span class="text-muted small">Click a topic to watch videos and read tutorials</span>
+          </div>
+          <div id="topic-list"><div class="spinner"></div></div>
+          <div id="topic-resources"></div>
+        </div>`;
+      document.getElementById("back-btn").addEventListener("click", loadSubjects);
+      loadTopics();
+    }
+
+    async function loadTopics() {
+      const host = document.getElementById("topic-list");
+      host.innerHTML = `<div class="spinner"></div>`;
+      try {
+        const res = await API.get(`/subjects/${currentSubject.id}/topics`);
+        const topics = res.data && (res.data.topics || (Array.isArray(res.data) ? res.data : []));
+        if (!topics || !topics.length) {
+          host.innerHTML = `<div class="empty-state"><i class="bi bi-folder-x"></i><p>No topics found for this subject yet.</p></div>`;
+          return;
+        }
+        topicCache = topics;
+        host.innerHTML = `<div class="row g-3">${topics.map((t, i) => `
+          <div class="col-md-6 col-xl-4">
+            <div class="card card-hover h-100 p-3 d-flex flex-column">
+              <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+                <h6 class="fw-bold mb-0">${UI.safeHtml(t.topicName)}</h6>
+                <span class="badge ${diffClass[t.difficultyLevel] || "badge-soft"}">${UI.safeHtml(t.difficultyLevel || "")}</span>
+              </div>
+              <p class="text-muted small mb-2 flex-grow-1">${UI.safeHtml(t.description || "")}</p>
+              <div class="d-flex justify-content-between align-items-center">
+                <span class="text-muted small"><i class="bi bi-clock me-1"></i>${t.estimatedHours ?? "-"} hrs</span>
+                <button class="btn btn-sm btn-ghost" data-topic-index="${i}">
+                  <i class="bi bi-play-circle me-1"></i>Resources
+                </button>
+              </div>
+            </div>
+          </div>`).join("")}</div>`;
+
+        host.querySelectorAll("[data-topic-index]").forEach((btn) =>
+          btn.addEventListener("click", () => {
+            const topic = topicCache[Number(btn.dataset.topicIndex)];
+            if (topic) showResources(topic, btn);
+          })
+        );
+      } catch (e) {
+        host.innerHTML = `<div class="empty-state"><p>${UI.safeHtml(e.message)}</p></div>`;
+      }
+    }
+
+    // Every resource - video, channel or website - is played or framed inside
+    // the panel below. Nothing navigates away and nothing opens a new tab.
+    // A small "Open in new tab" link exists only as a manual escape hatch for
+    // the sites that refuse to be framed.
+    function resourceCard(r, kind, topic) {
+      const icon = SOURCE_ICON[r.source] || "bi-link-45deg";
+      const badge = r.kind === "curated"
+        ? `<span class="badge badge-soft-green">Recommended</span>`
+        : `<span class="badge badge-soft">${kind === "DOC" ? "Reference" : "Search"}</span>`;
+      return `
+        <button type="button" class="resource-card w-100 text-start"
+                data-open="${attr(kind)}" data-rurl="${attr(r.url)}"
+                data-rtitle="${attr(r.title)}" data-rquery="${attr(r.query || "")}"
+                data-quiz-res="${attr(kind)}" data-quiz-title="${attr(r.title)}"
+                data-quiz-url="${attr(r.url)}">
+          <div class="d-flex align-items-start gap-2">
+            <i class="bi ${icon} fs-5"></i>
+            <div class="flex-grow-1 min-w-0">
+              <div class="fw-semibold small">${UI.safeHtml(r.title)}</div>
+              <div class="text-muted" style="font-size:.75rem">${UI.safeHtml(r.source)}</div>
+            </div>
+            ${badge}
+          </div>
+        </button>`;
+    }
+
+    function showResources(topic, trigger) {
+      const host = document.getElementById("topic-resources");
+      const data = window.TopicResources
+        ? window.TopicResources.forTopic({
+            subjectName: currentSubject.name,
+            subjectCode: currentSubject.code,
+            topicName: topic.topicName,
+            difficultyLevel: topic.difficultyLevel,
+            description: topic.description,
+            estimatedHours: topic.estimatedHours,
+          })
+        : { videos: [], docs: [], searches: [] };
+
+      const videos = data.videos || [];
+      // YouTube search links are not embeddable, so the panel resolves a real
+      // video ID per pick. The first curated entry supplies the search terms.
+      const firstVideo = videos[0];
+      const videoQuery = firstVideo ? (firstVideo.query || topic.topicName) : topic.topicName;
+
+      host.innerHTML = `
+        <div class="card p-3 mt-3 topic-resources-panel">
+          <div class="d-flex justify-content-between align-items-start gap-2 mb-3 flex-wrap">
+            <div>
+              <h6 class="fw-bold mb-1"><i class="bi bi-collection-play me-2 text-primary"></i>${UI.safeHtml(topic.topicName)}</h6>
+              <div class="d-flex align-items-center gap-2 flex-wrap">
+                <span class="badge ${diffClass[topic.difficultyLevel] || "badge-soft"}">${UI.safeHtml(topic.difficultyLevel || "")}</span>
+                <span class="text-muted small">${UI.safeHtml(currentSubject.name)}</span>
+                <span class="text-muted small"><i class="bi bi-clock me-1"></i>${topic.estimatedHours ?? "-"} hrs</span>
+              </div>
+              ${topic.description ? `<p class="text-muted small mb-0 mt-2">${UI.safeHtml(topic.description)}</p>` : ""}
+            </div>
+            <button class="btn btn-ghost btn-sm" id="close-resources"><i class="bi bi-x-lg me-1"></i>Close</button>
+          </div>
+
+          <h6 class="fw-bold small text-uppercase text-muted mb-2">Related Videos</h6>
+          <p class="text-muted mb-2" style="font-size:.75rem">
+            <i class="bi bi-box-arrow-up-right me-1"></i>Clicking a video opens that exact
+            video on YouTube in a new tab. Websites open right here, below.
+          </p>
+          <div id="inline-player"></div>
+          <div id="video-slot"></div>
+
+          <h6 class="fw-bold small text-uppercase text-muted mb-2">Video Channels</h6>
+          <div class="row g-2 mb-3">
+            ${(data.videos || []).map((r) => `<div class="col-md-6 col-xl-4">${resourceCard(r, "VIDEO", topic)}</div>`).join("")}
+          </div>
+          <p class="text-muted" style="font-size:.75rem">
+            Click any channel and that video opens on YouTube in a new tab.
+          </p>
+          <hr class="my-3">
+
+          <h6 class="fw-bold small text-uppercase text-muted mb-2">Read &amp; Reference</h6>
+          <div class="row g-2 mb-3">
+            ${(data.docs || []).map((r) => `<div class="col-md-6 col-xl-4">${resourceCard(r, "DOC", topic)}</div>`).join("")}
+          </div>
+
+          <h6 class="fw-bold small text-uppercase text-muted mb-2">More Places to Search</h6>
+          <div class="row g-2">
+            ${(data.searches || []).map((r) => `<div class="col-md-6 col-xl-4">${resourceCard(r, "SEARCH", topic)}</div>`).join("")}
           </div>
         </div>`;
-      const topicRow = document.createElement("div");
-      topicRow.className = "col-12";
-      box.appendChild(topicRow);
-      topicRow.innerHTML = `<div class="spinner"></div>`;
-      API.get(`/subjects/${subjectId}/topics`)
-        .then((res) => {
-          const topics = res.data && (res.data.topics || Array.isArray(res.data) ? res.data : []);
-          if (!topics.length) {
-            topicRow.innerHTML = `<div class="empty-state"><i class="bi bi-folder-x"></i><p>No topics found.</p></div>`;
+
+      document.getElementById("close-resources").addEventListener("click", () => {
+        host.innerHTML = "";
+        if (trigger) trigger.focus();
+      });
+
+      // The curated YouTube entries are search links and are not embeddable, so
+      // nothing is tracked until the student actually picks a playable video.
+      let quiz = null;
+      if (window.TopicQuiz) {
+        quiz = window.TopicQuiz.attach(host.querySelector(".topic-resources-panel"), {
+          topicId: topic.topicId,
+          topicName: topic.topicName,
+          difficultyLevel: topic.difficultyLevel,
+          primaryVideoTitle: "",
+          primaryVideoUrl: "",
+        }, currentSubject.name);
+      }
+
+      // The shared space used for anything that renders in the panel.
+      const playerHost = host.querySelector("#inline-player");
+
+      // ---- one renderer for every kind of resource -------------------- //
+      // Videos leave the app: a student who clicks one gets that exact video on
+      // youtube.com in a new tab, never a search page. Websites stay framed in
+      // the panel, because that is the only way to show their content.
+      const chrome = (title, subtitle, escapeUrl) => `
+        <div class="d-flex justify-content-between align-items-start gap-2 mb-2 flex-wrap">
+          <div class="min-w-0">
+            <div class="fw-semibold small text-truncate">${UI.safeHtml(title || "Resource")}</div>
+            ${subtitle ? `<div class="text-muted text-truncate" style="font-size:.75rem">${UI.safeHtml(subtitle)}</div>` : ""}
+          </div>
+          <div class="d-flex gap-2 flex-wrap">
+            ${escapeUrl ? `<a class="btn btn-sm btn-ghost" href="${attr(escapeUrl)}" target="_blank" rel="noopener noreferrer">
+              <i class="bi bi-box-arrow-up-right me-1"></i>Open in new tab</a>` : ""}
+            <button class="btn btn-sm btn-ghost" id="hide-player"><i class="bi bi-x-lg me-1"></i>Close</button>
+          </div>
+        </div>`;
+
+      const bindHide = () => {
+        const hide = playerHost.querySelector("#hide-player");
+        if (hide) hide.addEventListener("click", () => { playerHost.innerHTML = ""; });
+      };
+
+      // Sends the student to that video in a new tab. Returns false when the
+      // browser blocked the popup, so the caller can offer a manual link.
+      const openVideoInTab = (watchUrl) => {
+        const win = window.open(watchUrl, "_blank", "noopener,noreferrer");
+        return !!win;
+      };
+
+      const showVideoFallback = (video, note) => {
+        playerHost.innerHTML = `
+          <div class="alert alert-warning mb-2 small">
+            <i class="bi bi-info-circle me-1"></i>${UI.safeHtml(note)}
+          </div>
+          <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
+            <div class="min-w-0">
+              <div class="fw-semibold small text-truncate">${UI.safeHtml(video.title || "Video")}</div>
+              ${video.channelTitle ? `<div class="text-muted" style="font-size:.75rem">${UI.safeHtml(video.channelTitle)}</div>` : ""}
+            </div>
+            <div class="d-flex gap-2 flex-wrap">
+              <a class="btn btn-sm btn-primary" id="manual-video" href="${attr(video.watchUrl || "")}"
+                 target="_blank" rel="noopener noreferrer">
+                <i class="bi bi-box-arrow-up-right me-1"></i>Open in new tab</a>
+              <button class="btn btn-sm btn-ghost" id="hide-player"><i class="bi bi-x-lg me-1"></i>Close</button>
+            </div>
+          </div>`;
+        bindHide();
+      };
+
+      // Measured against these sites: they send X-Frame-Options or a
+      // frame-ancestors policy that forbids being embedded, so an iframe would
+      // sit empty for the full timeout and look broken. Say it up front instead.
+      const REFUSES_FRAMING = /(^|\.)(google\.[a-z.]+|w3schools\.com|geeksforgeeks\.org|tutorialspoint\.com|developer\.mozilla\.org|coursera\.org|youtube\.com)$/i;
+
+      const playSite = (url, title) => {
+        const safe = window.VideoPicker.httpUrl(url);
+        if (!safe) {
+          playerHost.innerHTML = `<div class="alert alert-warning mb-0 small">
+            <i class="bi bi-info-circle me-1"></i>This link is not a valid web address.</div>`;
+          return;
+        }
+        const host2 = new URL(safe).hostname;
+        if (REFUSES_FRAMING.test(host2)) {
+          playerHost.innerHTML = `
+            <div class="alert alert-info mb-0 small">
+              <i class="bi bi-shield-lock me-1"></i>
+              <b>${UI.safeHtml(host2)}</b> does not allow pages to be shown inside another
+              site, so its content cannot appear here. Open it in a new tab to read it -
+              everything else on this page keeps working.
+            </div>
+            ${chrome(title, host2, safe)}`;
+          bindHide();
+          if (quiz) quiz.record("DOC", title || "Website", safe);
+          return;
+        }
+        playerHost.innerHTML = `
+          <div class="learn-frame-wrap mb-2">
+            <iframe class="learn-frame" id="site-frame" src="${attr(safe)}"
+                    title="${attr(title || "Resource")}"
+                    referrerpolicy="strict-origin-when-cross-origin"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowfullscreen></iframe>
+          </div>
+          ${chrome(title, host2, safe)}`;
+        bindHide();
+        // A site that blocks framing never fires load; say so instead of
+        // leaving a blank rectangle.
+        const frame = playerHost.querySelector("#site-frame");
+        const wrap = playerHost.querySelector(".learn-frame-wrap");
+        frame.addEventListener("load", () => wrap.classList.add("is-loaded"));
+        setTimeout(() => {
+          if (!wrap.classList.contains("is-loaded")) {
+            wrap.classList.add("is-blocked");
+            playerHost.insertAdjacentHTML("beforeend",
+              `<p class="text-muted small">This site will not open inside a page. Use “Open in new tab”.</p>`);
+          }
+        }, 6000);
+        if (quiz) quiz.record("DOC", title || "Website", safe);
+      };
+
+      const openInline = async (card) => {
+        const kind = card.dataset.open;
+        const url = card.dataset.rurl || "";
+        const title = card.dataset.rtitle || "";
+        const query = card.dataset.rquery || "";
+        const yt = window.VideoPicker.youtubeInfo(url);
+
+        // A specific YouTube video can go straight to its watch page.
+        if (yt.isYouTube && yt.videoId) {
+          const video = { videoId: yt.videoId, title: title || "Video", channelTitle: "", watchUrl: yt.watchUrl };
+          if (!openVideoInTab(yt.watchUrl)) showVideoFallback(video, "Your browser blocked the new tab.");
+          if (quiz) quiz.record("VIDEO", video.title, video.watchUrl);
+          return;
+        }
+        // Websites are framed here; there is no other way to show their content.
+        if (!yt.isYouTube) {
+          playSite(url, title);
+          return;
+        }
+
+        // A YouTube search link names no video, so ask the gateway for one and
+        // send the student to that video, not to a search page.
+        const term = query || yt.query || title;
+        playerHost.innerHTML = `<div class="spinner"></div>`;
+        try {
+          const res = await window.VideoPicker.search(term);
+          const data = (res && res.data) || {};
+          if (data.degraded) {
+            playerHost.innerHTML = `<div class="alert alert-warning mb-0 small">
+              <i class="bi bi-info-circle me-1"></i>${UI.safeHtml(data.message || "Video search is unavailable right now.")}</div>`;
             return;
           }
-          const diffClass = { BEGINNER: "badge-soft-green", INTERMEDIATE: "badge-soft-orange", ADVANCED: "badge-soft-red" };
-          topicRow.innerHTML = `
-            <div class="table-responsive"><table class="table table-hover">
-              <thead><tr><th>Topic</th><th>Difficulty</th><th>Est. Hours</th><th>Description</th></tr></thead>
-              <tbody>${topics.map((t) => `
-                <tr>
-                  <td class="fw-semibold">${UI.safeHtml(t.topicName)}</td>
-                  <td><span class="badge ${diffClass[t.difficultyLevel] || "badge-soft"}">${UI.safeHtml(t.difficultyLevel || "")}</span></td>
-                  <td>${t.estimatedHours ?? "-"} hrs</td>
-                  <td class="text-muted small">${UI.safeHtml(t.description || "")}</td>
-                </tr>`).join("")}
-              </tbody>
-            </table></div>`;
-        })
-        .catch((e) => { topicRow.innerHTML = `<div class="empty-state"><p>${UI.safeHtml(e.message)}</p></div>`; });
+          const items = data.items || [];
+          if (!items.length) {
+            playerHost.innerHTML = `<div class="alert alert-warning mb-0 small">
+              <i class="bi bi-info-circle me-1"></i>No videos found for “${UI.safeHtml(term)}”.</div>`;
+            return;
+          }
+          const top = items[0];
+          const video = { videoId: top.videoId, title: top.title, channelTitle: top.channelTitle, watchUrl: top.watchUrl };
+          if (!openVideoInTab(top.watchUrl)) showVideoFallback(video, "Your browser blocked the new tab.");
+          if (quiz) quiz.record("VIDEO", video.title || "Video", video.watchUrl || "");
+        } catch (err) {
+          playerHost.innerHTML = `<div class="alert alert-danger mb-0 small">
+            ${UI.safeHtml((err && err.message) || "Search failed.")} Please try again.</div>`;
+        }
+      };
+
+      host.addEventListener("click", (event) => {
+        const card = event.target.closest("[data-open]");
+        if (card && host.contains(card)) openInline(card);
+      });
+
+      const slot = host.querySelector("#video-slot");
+      if (slot && window.VideoPicker) {
+        // Videos open in a new tab on youtube.com, so the cards are real links
+        // to the exact video the gateway returned.
+        window.VideoPicker.mount(slot, {
+          query: videoQuery,
+          openInTab: true,
+        });
+      } else if (slot) {
+        slot.innerHTML = `<div class="alert alert-warning mb-0 small">Video search is unavailable.</div>`;
+      }
+      host.scrollIntoView({ behavior: "smooth", block: "start" });
     }
+
+    deptSelect.addEventListener("change", loadSubjects);
 
     document.getElementById("refresh-btn").addEventListener("click", async () => {
       try {
@@ -113,7 +482,10 @@
       } catch (e) { UI.showToast(e.message, "danger"); }
     });
 
-    loadSubjects();
+    (async () => {
+      await loadDepartments();
+      await loadSubjects();
+    })();
     window.loadSubjects = loadSubjects;
   </script>
 </body>

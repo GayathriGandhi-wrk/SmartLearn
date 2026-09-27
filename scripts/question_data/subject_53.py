@@ -2,7 +2,6 @@
 """
 Question bank for subject 53: CLD107 - Cyber Forensics & Incident Response.
 Category: Cloud, Cybersecurity & DevOps.
-Semester: 7.
 
 Topics:
   261: Digital Evidence & Chain of Custody

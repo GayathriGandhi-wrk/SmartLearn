@@ -2,7 +2,6 @@
 """
 Question bank for subject 58: CLD108 - Cloud Security & Governance.
 Category: Cloud, Cybersecurity & DevOps.
-Semester: 8.
 
 Topics:
   286: Shared Responsibility Model
