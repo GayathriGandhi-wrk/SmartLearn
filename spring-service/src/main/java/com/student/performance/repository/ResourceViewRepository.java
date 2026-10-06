@@ -22,6 +22,20 @@ public interface ResourceViewRepository extends JpaRepository<ResourceView, Long
 
     long countByStudent_StudentId(Long studentId);
 
+    /**
+     * One row per topic this student has opened a resource for, with how many
+     * resources and when they last looked. Drives the "ready to test" list on
+     * the adaptive test page.
+     */
+    @Query("""
+            SELECT rv.topic.topicId, COUNT(rv), MAX(rv.lastViewedAt)
+              FROM ResourceView rv
+             WHERE rv.student.studentId = :studentId
+             GROUP BY rv.topic.topicId
+             ORDER BY MAX(rv.lastViewedAt) DESC
+            """)
+    List<Object[]> summariseStudiedTopics(@Param("studentId") Long studentId);
+
     @Modifying
     @Query("""
             UPDATE ResourceView r

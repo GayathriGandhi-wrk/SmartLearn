@@ -36,6 +36,21 @@ public class TopicResourceController {
         return ResponseEntity.ok(ApiResponse.ok(topicResourceService.listViews(topicId)));
     }
 
+    @PatchMapping("/{topicId}/views/{viewId}/progress")
+    @Operation(summary = "Report how far into a video the student has watched")
+    public ResponseEntity<ApiResponse<TopicResourceDto.ViewResponse>> recordProgress(
+            @PathVariable Long topicId,
+            @PathVariable Long viewId,
+            @RequestBody TopicResourceDto.ProgressRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok(topicResourceService.recordProgress(topicId, viewId, request)));
+    }
+
+    @GetMapping("/pending")
+    @Operation(summary = "Concepts the student has studied but not been tested on yet")
+    public ResponseEntity<ApiResponse<List<TopicResourceDto.PendingTest>>> pendingTests() {
+        return ResponseEntity.ok(ApiResponse.ok(topicResourceService.listPendingTests()));
+    }
+
     @PostMapping("/{topicId}/questions")
     @Operation(summary = "'I have learned up to here' - generate questions the student has not seen before")
     public ResponseEntity<ApiResponse<TopicResourceDto.GenerateResponse>> generate(

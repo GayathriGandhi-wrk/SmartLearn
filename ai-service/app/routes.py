@@ -52,7 +52,8 @@ def _infer_knowledge_gaps(features: dict) -> list:
 
 
 def register_routes(app, model_manager, preprocessor, explainer,
-                    recommender, planner, chatbot, question_generator):
+                    recommender, planner, chatbot, question_generator,
+                    content_extractor):
     """Register all API routes on the Flask app."""
     api = Blueprint("api", __name__, url_prefix="/api")
 
@@ -134,7 +135,7 @@ def register_routes(app, model_manager, preprocessor, explainer,
     # ---------------------------------------------------------------- #
     @api.post("/generate-questions")
     def generate_questions():
-        """Generate fresh MCQs for a topic a student has just studied."""
+        """Generate fresh MCQs for the concept a student has just studied."""
         payload = request.get_json(silent=True) or {}
         result = question_generator.generate(
             topic=payload.get("topic", ""),
@@ -144,8 +145,36 @@ def register_routes(app, model_manager, preprocessor, explainer,
             count=payload.get("count", 5),
             avoid=payload.get("avoid") or [],
             provider=payload.get("provider"),
+            # The concept narrows the test to what was actually learned instead
+            # of the subject as a whole.
+            concept=payload.get("concept", ""),
+            # The transcript or page text the questions should be written from.
+            # Empty when the resource could not be read, and the generator then
+            # falls back to asking about the concept alone.
+            source_content=payload.get("source_content", ""),
         )
         result["available"] = True
+        return jsonify(result)
+
+    # ---------------------------------------------------------------- #
+    @api.post("/extract-content")
+    def extract_content():
+        """
+        Read the text a student actually consumed from a resource.
+
+        A video is trimmed to `max_seconds`, which is the point the student
+        reached before pressing "I have learned up to here", so the questions
+        never cover a part of the lesson they had not seen. A page has no
+        position and is returned whole.
+        """
+        payload = request.get_json(silent=True) or {}
+        result = content_extractor.extract(
+            url=payload.get("url", ""),
+            kind=payload.get("kind", "AUTO"),
+            max_seconds=payload.get("max_seconds"),
+        )
+        # available=False is a real outcome here (no captions, blocked site),
+        # not an error, so it is reported as a 200 with an explanation.
         return jsonify(result)
 
     # ---------------------------------------------------------------- #

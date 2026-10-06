@@ -1,4 +1,0 @@
--------------------------------------------------------------------------------
-Test set: com.student.performance.AuthServiceIntegrationTest
--------------------------------------------------------------------------------
-Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 13.90 s -- in com.student.performance.AuthServiceIntegrationTest

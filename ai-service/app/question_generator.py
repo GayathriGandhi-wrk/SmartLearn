@@ -5,6 +5,12 @@ Generates fresh MCQs for a topic using Gemini when an API key is configured,
 and falls back to deterministic templates so the feature still works offline.
 Callers pass the question texts a student has already been served so the same
 question is never generated twice for that student.
+
+When the caller can supply the real content of the resource the student worked
+through (a video transcript, the text of a documentation page) it is passed as
+`source_content` and the questions are written from that rather than from the
+topic name, which is the only way the questions can be about what was actually
+learned instead of about the subject in general.
 """
 
 import json
@@ -15,6 +21,17 @@ import re
 logger = logging.getLogger("question_generator")
 
 DIFFICULTIES = ("BEGINNER", "INTERMEDIATE", "ADVANCED")
+
+# How much of the supplied content goes into the prompt. A whole lecture is far
+# more than enough to write twenty questions from, and an unbounded transcript
+# only dilutes the model and eats its context.
+MAX_SOURCE_CONTENT_CHARS = int(os.environ.get("QUESTION_SOURCE_CHARS", "12000"))
+
+# A concept test scales from 10 to 20 questions with the size of the concept, so
+# the cap has to sit at the top of that range rather than at the old fixed 10.
+# The fallback templates cannot reach 20 on their own, which is fine: the Spring
+# service tops the batch up from the seeded bank.
+MAX_QUESTIONS = 20
 
 # Question shapes used by the offline fallback. Each entry is
 # (question template, correct answer template, three distractor templates).
@@ -191,14 +208,19 @@ class QuestionGeneratorService:
 
     def generate(self, topic: str, subject: str = "", resource_title: str = "",
                  difficulty: str = "BEGINNER", count: int = 5,
-                 avoid: list = None, provider: str = None) -> dict:
+                 avoid: list = None, provider: str = None,
+                 concept: str = "", source_content: str = "") -> dict:
         topic = (topic or "this topic").strip()
         subject = (subject or "").strip()
         resource_title = (resource_title or "").strip()
+        concept = (concept or "").strip()
+        source_content = re.sub(
+            r"\s+", " ", (source_content or "").strip()
+        )[:MAX_SOURCE_CONTENT_CHARS].strip()
         difficulty = (difficulty or "BEGINNER").upper()
         if difficulty not in DIFFICULTIES:
             difficulty = "BEGINNER"
-        count = max(1, min(int(count or 5), 10))
+        count = max(1, min(int(count or 5), MAX_QUESTIONS))
         avoid_norm = {normalize(a) for a in (avoid or []) if a}
 
         provider = (provider or self.provider).lower()
@@ -207,7 +229,8 @@ class QuestionGeneratorService:
 
         if provider in ("gemini", "openai") and self._try_ai(provider, topic, subject,
                                                              resource_title, difficulty,
-                                                             count, avoid_norm):
+                                                             count, avoid_norm, concept,
+                                                             source_content):
             questions = self._last_result
             used_provider = provider
 
@@ -224,11 +247,13 @@ class QuestionGeneratorService:
             "available": bool(questions),
             "topic": topic,
             "difficulty": difficulty,
+            "grounded": bool(source_content),
         }
 
     # ------------------------------------------------------------------ #
     def _try_ai(self, provider: str, topic: str, subject: str, resource_title: str,
-                difficulty: str, count: int, avoid_norm: set) -> bool:
+                difficulty: str, count: int, avoid_norm: set,
+                concept: str = "", source_content: str = "") -> bool:
         key = self.gemini_key if provider == "gemini" else self.openai_key
         if not self._has_real_key(key):
             logger.info("%s key not configured for question generation; using templates.", provider.upper())
@@ -242,8 +267,41 @@ class QuestionGeneratorService:
 
         focus = f"Subject: {subject}\n" if subject else ""
         focus += f"Topic: {topic}\n"
+        if concept:
+            # The concept is what the test is really about. Without it the model
+            # drifts into generic questions about the whole subject, which is
+            # exactly what the student did not ask for.
+            focus += (f'Concept being tested: "{concept}"\n'
+                      "Every question must examine that specific concept. Do not ask about "
+                      "other parts of the subject.\n")
         if resource_title:
             focus += f'The student just finished this resource: "{resource_title}".\n'
+
+        if source_content:
+            # This is the part that makes the questions real. The content is
+            # quoted verbatim so the model treats it as the only permitted
+            # source of facts, rather than as a hint it may improve on from its
+            # own knowledge of the wider subject.
+            focus += (
+                "\nThe student learned from the following content. It is an "
+                "unreliable transcript or web extract, so ignore broken words and "
+                "filler, but treat every idea, definition, step, example and "
+                "distinction in it as the material you may test.\n"
+                f"<<<CONTENT\n{source_content}\nCONTENT\n\n"
+                "Rules for the questions:\n"
+                "- Every question must be answerable from the content above, and its "
+                "correct option must be stated or directly implied there.\n"
+                "- The three wrong options must be plausible to someone who skimmed "
+                "the content, never obviously absurd.\n"
+                "- Do not test anything the content does not mention, even if it is a "
+                "standard part of the subject.\n"
+                "- In the explanation, say which part of the content the answer comes "
+                "from.\n"
+            )
+        else:
+            focus += ("No content from the resource could be read, so answer from the "
+                      "concept above alone and keep the questions to the basics.\n")
+
         focus += f"Difficulty: {difficulty}\nProduce {count} distinct questions."
         prompt = f"{focus}{avoid_hint}"
 

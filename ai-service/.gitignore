@@ -1,0 +1,13 @@
+# Local virtual environment. Recreate it with:
+#   python -m venv .venv
+#   .venv\Scripts\python -m pip install -r requirements.txt
+.venv/
+venv/
+env/
+
+# Compiled bytecode
+__pycache__/
+*.py[cod]
+
+# Real secrets. .env.example is the template that is meant to be shared.
+.env

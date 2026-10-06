@@ -1,10 +1,20 @@
 /**
- * Turns a topic's learning resources into a quiz.
+ * Turns a topic's learning resources into an adaptive test.
  *
- * A student opens a tutorial video or doc, and the panel keeps track of it. When
- * they press the stop marker ("I have learned up to here") questions are
- * generated for that topic. The backend guarantees the same question is never
- * returned to the same student twice, so this module does not de-duplicate.
+ * A student opens a tutorial video or doc, and this module keeps track of it.
+ * When they mark where they stopped learning, the backend generates questions
+ * for that topic and packs them into a real test, which the student then takes
+ * in the Adaptive Test module. This module deliberately does not render the
+ * questions itself: the test module already owns the countdown, grading, XP and
+ * the test history, so duplicating any of that here would let the two drift
+ * apart. The backend also guarantees the same question is never returned to the
+ * same student twice, so there is nothing to de-duplicate on this side.
+ *
+ * Where the student got to in a video is passed in as a callback rather than
+ * tracked here, because the player lives on the host page. The position is sent
+ * to the backend before every generation, which is what makes the button honest:
+ * the test covers the part that was watched, and the panel says so either way,
+ * including when the video turned out to have no readable content.
  *
  * Public API: TopicQuiz.attach(panelElement, topic, subjectName)
  */
@@ -17,8 +27,17 @@
     if (window.UI && window.UI.showToast) window.UI.showToast(msg, type);
   };
 
-  const LETTERS = ["A", "B", "C", "D"];
-  const OPTIONS = ["optionA", "optionB", "optionC", "optionD"];
+  const TEST_PAGE = "/pages/student/adaptive-test.html";
+
+  /** "8:12 of 20:04", the way the student reads a playback position. */
+  function clock(totalSeconds) {
+    const seconds = Math.max(0, Math.floor(Number(totalSeconds) || 0));
+    const hh = Math.floor(seconds / 3600);
+    const mm = Math.floor((seconds % 3600) / 60);
+    const ss = seconds % 60;
+    const pad = (n) => String(n).padStart(2, "0");
+    return hh > 0 ? `${hh}:${pad(mm)}:${pad(ss)}` : `${mm}:${pad(ss)}`;
+  }
 
   function attach(panel, topic, subjectName) {
     if (!panel || !topic) return;
@@ -28,9 +47,11 @@
       topicName: topic.topicName,
       subjectName: subjectName || "",
       opened: [],
-      questions: [],
-      answers: {},
+      testId: null,
       busy: false,
+      // How far the student got, as reported by the host page's player. A page
+      // has no position, so this stays null and the whole resource is used.
+      watchPosition: typeof topic.watchPosition === "function" ? topic.watchPosition : null,
     };
 
     // ---- stop marker block, injected at the top of the panel -----------
@@ -49,13 +70,13 @@
         </button>
       </div>
       <div id="lq-queue" class="mt-2"></div>
-      <div id="lq-quiz" class="mt-3"></div>`;
+      <div id="lq-result" class="mt-3"></div>`;
     panel.insertBefore(marker, panel.firstChild);
 
     const generateBtn = marker.querySelector("#lq-generate");
     const summary = marker.querySelector("#lq-summary");
     const queue = marker.querySelector("#lq-queue");
-    const quiz = marker.querySelector("#lq-quiz");
+    const result = marker.querySelector("#lq-result");
 
     // ---- tracking ------------------------------------------------------
     // The embedded player is a YouTube search for this topic, so watching it
@@ -73,6 +94,23 @@
       const url = link.dataset.quizUrl || link.getAttribute("href") || "";
       record(link.dataset.quizRes, link.dataset.quizTitle || "", url);
     });
+
+    /** The furthest point the student has played to in the current video. */
+    function currentPosition() {
+      if (!state.watchPosition) return null;
+      let position = null;
+      try {
+        position = state.watchPosition();
+      } catch (err) {
+        return null;
+      }
+      const watched = Math.floor(Number(position && position.watchedSeconds) || 0);
+      if (watched <= 0) return null;
+      return {
+        watchedSeconds: watched,
+        durationSeconds: Math.floor(Number(position.durationSeconds) || 0) || null,
+      };
+    }
 
     function record(type, title, url) {
       if (!url || state.busy) return;
@@ -97,6 +135,35 @@
         });
     }
 
+    /**
+     * Sends the playback position to the backend. Called on a timer while the
+     * student watches, and once more immediately before generating, so the test
+     * is never built from a position the backend has not caught up with.
+     */
+    function pushProgress() {
+      const api = window.API;
+      if (!api) return Promise.resolve();
+      const position = currentPosition();
+      if (!position) return Promise.resolve();
+      // Only the video currently on screen is being watched, and a page has no
+      // position, so only a tracked video is ever reported.
+      const target = state.opened.find((r) => r.type !== "DOC") || state.opened[0];
+      if (!target || !target.viewId || target.type === "DOC") return Promise.resolve();
+      return api
+        .patch(`/topic-resources/${state.topicId}/views/${target.viewId}/progress`, {
+          watchedSeconds: position.watchedSeconds,
+          durationSeconds: position.durationSeconds,
+        })
+        .then(() => {
+          target.watchedSeconds = position.watchedSeconds;
+          target.durationSeconds = position.durationSeconds;
+          renderQueue();
+        })
+        .catch(() => {
+          /* a missed position only makes the test broader, never wrong */
+        });
+    }
+
     function renderQueue() {
       const items = state.opened
         .map(
@@ -107,8 +174,18 @@
         .join("");
       queue.innerHTML = items;
       generateBtn.disabled = state.opened.length === 0 || state.busy;
+
+      const position = currentPosition();
+      let where = "";
+      if (position) {
+        where = position.durationSeconds
+          ? ` You have watched ${clock(position.watchedSeconds)} of ${clock(position.durationSeconds)}, so that is all the test will cover.`
+          : ` You have watched ${clock(position.watchedSeconds)}, so that is all the test will cover.`;
+      } else if (state.opened.some((r) => r.type !== "DOC")) {
+        where = " Start the video and the test will cover only what you have played.";
+      }
       summary.textContent = state.opened.length
-        ? `${state.opened.length} resource${state.opened.length > 1 ? "s" : ""} opened for "${state.topicName}". Questions will cover only what you have seen, and will not repeat ones you already answered.`
+        ? `${state.opened.length} resource${state.opened.length > 1 ? "s" : ""} opened for "${state.topicName}".${where} You will not be given a question you have already answered.`
         : "Open a tutorial or doc, then mark where you stopped learning.";
     }
 
@@ -118,27 +195,24 @@
       state.busy = true;
       generateBtn.disabled = true;
       generateBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Generating...';
-      state.questions = [];
-      state.answers = {};
-      quiz.innerHTML = "";
+      result.innerHTML = "";
+
+      // The backend can only quiz the part that was watched, and it only knows
+      // that if the last position has reached it.
+      await pushProgress();
 
       const last = state.opened[state.opened.length - 1];
       try {
         const res = await window.API.post(`/topic-resources/${state.topicId}/questions`, {
-          count: 5,
           difficulty: state.difficulty || null,
           resourceViewId: last && last.viewId ? last.viewId : null,
+          // No count is sent: the backend sizes the test from the concept, so
+          // the same number is shown here and on the adaptive test page.
+          createTest: true,
         });
         const data = (res && res.data) || {};
-        state.questions = data.questions || [];
-        state.topicName = data.topicName || state.topicName;
-        renderQuiz(data);
-        if (!state.questions.length) {
-          quiz.innerHTML = `<div class="alert alert-warning mb-0 small">
-            No unused questions are left for this topic. Try a different topic, or revisit
-            the ones you have already answered.
-          </div>`;
-        }
+        state.testId = data.testId || null;
+        renderResult(data);
       } catch (err) {
         toast(err.message || "Could not generate questions", "danger");
       } finally {
@@ -148,98 +222,61 @@
       }
     });
 
-    function renderQuiz(data) {
-      if (!state.questions.length) return;
-      const fromBank = data.fromBank
-        ? " AI questions were unavailable, so these come from the curated bank."
-        : "";
-      quiz.innerHTML = `
-        <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap mb-2">
-          <div class="fw-bold small text-uppercase text-muted">
-            <i class="bi bi-patch-question me-1"></i>Your questions
-          </div>
-          <span class="text-muted" style="font-size:.75rem">${safe(data.resourceTitle || "Based on what you studied")}${safe(fromBank)}</span>
-        </div>
-        ${state.questions.map(questionHtml).join("")}
-        <button class="btn btn-primary btn-sm mt-2" id="lq-check">
-          <i class="bi bi-check2-circle me-1"></i>Check my answers
-        </button>
-        <div id="lq-score" class="mt-2"></div>`;
-
-      quiz.querySelectorAll("[data-quiz-choice]").forEach((input) => {
-        input.addEventListener("change", () => {
-          state.answers[input.dataset.quizChoice] = input.value;
-        });
-      });
-      quiz.querySelector("#lq-check").addEventListener("click", checkAnswers);
-    }
-
-    function questionHtml(q) {
-      const given = state.answers[q.questionId];
-      return `
-        <div class="learned-question" data-quiz-q="${attr(q.questionId)}">
-          <div class="fw-semibold small mb-2">${safe(q.questionText)}</div>
-          <div class="d-flex flex-column gap-1">
-            ${OPTIONS.map((key, i) => {
-              const letter = LETTERS[i];
-              const picked = given === letter;
-              let cls = "learned-option";
-              if (given) {
-                if (picked) cls += picked === given ? " is-correct" : " is-wrong";
-                if (given === letter) cls += " is-answer";
-              }
-              return `
-                <label class="${cls}">
-                  <input type="radio" class="form-check-input mt-1" name="lq-${attr(q.questionId)}"
-                    value="${letter}" data-quiz-choice="${attr(q.questionId)}"
-                    ${picked ? "checked" : ""} ${given ? "disabled" : ""}>
-                  <span class="small">${letter}. ${safe(q[key])}</span>
-                </label>`;
-            }).join("")}
-          </div>
-          <div class="learned-feedback small mt-1"></div>
+    function renderResult(data) {
+      const total = (data.questions || []).length;
+      if (!total) {
+        result.innerHTML = `<div class="alert alert-warning mb-0 small">
+          <i class="bi bi-exclamation-triangle me-1"></i>
+          No unused questions are left for this topic. Try a different topic, or revisit
+          the ones you have already answered.
         </div>`;
-    }
-
-    async function checkAnswers() {
-      const unanswered = state.questions.filter((q) => !state.answers[q.questionId]);
-      if (unanswered.length) {
-        toast(`Please answer all ${unanswered.length} remaining question(s)`, "warning");
         return;
       }
-      let correct = 0;
-      for (const q of state.questions) {
-        const box = quiz.querySelector(`[data-quiz-q="${q.questionId}"]`);
-        if (!box) continue;
-        const feedback = box.querySelector(".learned-feedback");
-        try {
-          const res = await window.API.post(
-            `/topic-resources/questions/${q.questionId}/answer`,
-            { selectedAnswer: state.answers[q.questionId] }
-          );
-          const data = (res && res.data) || {};
-          const ok = !!data.correct;
-          if (ok) correct += 1;
-          box.classList.add(ok ? "is-correct" : "is-wrong");
-          feedback.innerHTML = ok
-            ? `<span class="text-success fw-semibold"><i class="bi bi-check-circle me-1"></i>Correct.</span>
-               ${data.explanation ? `<div class="text-muted mt-1">${safe(data.explanation)}</div>` : ""}`
-            : `<span class="text-danger fw-semibold"><i class="bi bi-x-circle me-1"></i>Incorrect. Answer: ${safe(data.correctAnswer || "-")}.</span>
-               ${data.explanation ? `<div class="text-muted mt-1">${safe(data.explanation)}</div>` : ""}`;
-        } catch (err) {
-          feedback.innerHTML = `<span class="text-danger small">${safe(err.message || "Could not save this answer")}</span>`;
-        }
-      }
-      quiz.querySelectorAll("[data-quiz-choice]").forEach((i) => (i.disabled = true));
-      const score = quiz.querySelector("#lq-score");
-      if (score) {
-        score.innerHTML = `<div class="alert ${
-          correct === state.questions.length ? "alert-success" : "alert-info"
-        } mb-0 py-2 small">
-          You scored <strong>${correct}/${state.questions.length}</strong>.
-          Press the button above for a fresh set - these questions will not be repeated to you.
+
+      if (!data.testId) {
+        // The questions exist but no test was made, so there is nowhere to send
+        // the student. Say so rather than leaving a dead button.
+        result.innerHTML = `<div class="alert alert-info mb-0 small">
+          <i class="bi bi-info-circle me-1"></i>
+          ${safe(total)} question${total > 1 ? "s" : ""} were prepared, but the test could not be
+          created. Please try again.
         </div>`;
+        return;
       }
+
+      const fromBank = data.fromBank
+        ? " AI was unavailable, so these come from the curated question bank."
+        : "";
+
+      // The most important line on the panel: whether the questions were written
+      // from the lesson, and if not, why.
+      const source = data.contentSource === "TRANSCRIPT"
+        ? `Taken from the first ${clock(data.coveredSeconds || 0)} of the video.`
+        : data.contentSource === "PAGE"
+          ? "Taken from the page you read."
+          : `This video or page could not be read, so the questions cover "${data.topicName}" in general. ${data.contentNote || ""}`;
+
+      const mins = data.durationMinutes || "?";
+
+      result.innerHTML = `
+        <div class="alert alert-success mb-0">
+          <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
+            <div>
+              <div class="fw-bold small">
+                <i class="bi bi-patch-check me-1"></i>
+                Your test is ready - ${safe(total)} question${total > 1 ? "s" : ""}, ${safe(mins)} min
+              </div>
+              <div class="text-muted mt-1" style="font-size:.78rem">
+                ${safe(source)} Based on ${safe(data.resourceTitle || "what you just studied")}.${safe(fromBank)}
+                Take it in the Adaptive Test module to get your score and explanations.
+              </div>
+            </div>
+            <a class="btn btn-primary btn-sm text-nowrap" id="lq-go"
+               href="${TEST_PAGE}?testId=${attr(data.testId)}">
+              <i class="bi bi-play-circle me-1"></i>Start test
+            </a>
+          </div>
+        </div>`;
     }
 
     renderQueue();
@@ -248,6 +285,9 @@
     // opens after the first one, without re-attaching the whole panel.
     return {
       record: (type, title, url) => record(type, title, url),
+      // Also lets the host page say when playback moves, so the panel can keep
+      // the "you have watched..." line current without polling the player itself.
+      refresh: () => renderQueue(),
       state,
     };
   }

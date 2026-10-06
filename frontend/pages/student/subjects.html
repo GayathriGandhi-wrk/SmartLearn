@@ -257,20 +257,18 @@
           </div>
 
           <h6 class="fw-bold small text-uppercase text-muted mb-2">Related Videos</h6>
-          <p class="text-muted mb-2" style="font-size:.75rem">
-            <i class="bi bi-box-arrow-up-right me-1"></i>Clicking a video opens that exact
-            video on YouTube in a new tab. Websites open right here, below.
-          </p>
-          <div id="inline-player"></div>
           <div id="video-slot"></div>
+          <p class="text-muted" style="font-size:.75rem">
+            <i class="bi bi-play-circle me-1"></i>Click any video and it plays right here,
+            below. Websites open in the same place.
+          </p>
 
           <h6 class="fw-bold small text-uppercase text-muted mb-2">Video Channels</h6>
           <div class="row g-2 mb-3">
             ${(data.videos || []).map((r) => `<div class="col-md-6 col-xl-4">${resourceCard(r, "VIDEO", topic)}</div>`).join("")}
           </div>
-          <p class="text-muted" style="font-size:.75rem">
-            Click any channel and that video opens on YouTube in a new tab.
-          </p>
+
+          <div id="inline-player"></div>
           <hr class="my-3">
 
           <h6 class="fw-bold small text-uppercase text-muted mb-2">Read &amp; Reference</h6>
@@ -327,31 +325,31 @@
         if (hide) hide.addEventListener("click", () => { playerHost.innerHTML = ""; });
       };
 
-      // Sends the student to that video in a new tab. Returns false when the
-      // browser blocked the popup, so the caller can offer a manual link.
-      const openVideoInTab = (watchUrl) => {
-        const win = window.open(watchUrl, "_blank", "noopener,noreferrer");
-        return !!win;
-      };
-
-      const showVideoFallback = (video, note) => {
+      // Plays a picked video in the panel, below the list that was clicked.
+      // playerHtml refuses anything that is not a valid 11-char video ID, so a
+      // bad id from a search response can never reach an iframe src.
+      const playVideo = (video) => {
+        const frame = window.VideoPicker.playerHtml(video.videoId, video.title || "Video");
+        if (!frame) {
+          playerHost.innerHTML = `<div class="alert alert-warning mb-0 small">
+            <i class="bi bi-info-circle me-1"></i>That video cannot be played here.</div>`;
+          return;
+        }
         playerHost.innerHTML = `
-          <div class="alert alert-warning mb-2 small">
-            <i class="bi bi-info-circle me-1"></i>${UI.safeHtml(note)}
+          <div class="learn-frame-wrap mb-2" id="video-frame-wrap">
+            ${frame}
           </div>
-          <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
-            <div class="min-w-0">
-              <div class="fw-semibold small text-truncate">${UI.safeHtml(video.title || "Video")}</div>
-              ${video.channelTitle ? `<div class="text-muted" style="font-size:.75rem">${UI.safeHtml(video.channelTitle)}</div>` : ""}
-            </div>
-            <div class="d-flex gap-2 flex-wrap">
-              <a class="btn btn-sm btn-primary" id="manual-video" href="${attr(video.watchUrl || "")}"
-                 target="_blank" rel="noopener noreferrer">
-                <i class="bi bi-box-arrow-up-right me-1"></i>Open in new tab</a>
-              <button class="btn btn-sm btn-ghost" id="hide-player"><i class="bi bi-x-lg me-1"></i>Close</button>
-            </div>
-          </div>`;
+          ${chrome(video.title, video.channelTitle, video.watchUrl)}`;
         bindHide();
+        // The frame never fires load when YouTube is unreachable or blocked, so
+        // mark the placeholder rather than leaving a blank rectangle.
+        const wrap = playerHost.querySelector("#video-frame-wrap");
+        playerHost.querySelector(".learn-frame")
+          .addEventListener("load", () => wrap.classList.add("is-loaded"));
+        setTimeout(() => {
+          if (!wrap.classList.contains("is-loaded")) wrap.classList.add("is-blocked");
+        }, 6000);
+        playerHost.scrollIntoView({ behavior: "smooth", block: "nearest" });
       };
 
       // Measured against these sites: they send X-Frame-Options or a
@@ -412,10 +410,10 @@
         const query = card.dataset.rquery || "";
         const yt = window.VideoPicker.youtubeInfo(url);
 
-        // A specific YouTube video can go straight to its watch page.
+        // A specific YouTube video plays in the panel.
         if (yt.isYouTube && yt.videoId) {
           const video = { videoId: yt.videoId, title: title || "Video", channelTitle: "", watchUrl: yt.watchUrl };
-          if (!openVideoInTab(yt.watchUrl)) showVideoFallback(video, "Your browser blocked the new tab.");
+          playVideo(video);
           if (quiz) quiz.record("VIDEO", video.title, video.watchUrl);
           return;
         }
@@ -445,7 +443,7 @@
           }
           const top = items[0];
           const video = { videoId: top.videoId, title: top.title, channelTitle: top.channelTitle, watchUrl: top.watchUrl };
-          if (!openVideoInTab(top.watchUrl)) showVideoFallback(video, "Your browser blocked the new tab.");
+          playVideo(video);
           if (quiz) quiz.record("VIDEO", video.title || "Video", video.watchUrl || "");
         } catch (err) {
           playerHost.innerHTML = `<div class="alert alert-danger mb-0 small">
@@ -460,11 +458,13 @@
 
       const slot = host.querySelector("#video-slot");
       if (slot && window.VideoPicker) {
-        // Videos open in a new tab on youtube.com, so the cards are real links
-        // to the exact video the gateway returned.
+        // Clicking a card plays that exact video in the panel, below the list.
         window.VideoPicker.mount(slot, {
           query: videoQuery,
-          openInTab: true,
+          onPick: (video) => {
+            playVideo(video);
+            if (quiz) quiz.record("VIDEO", video.title || "Video", video.watchUrl || "");
+          },
         });
       } else if (slot) {
         slot.innerHTML = `<div class="alert alert-warning mb-0 small">Video search is unavailable.</div>`;

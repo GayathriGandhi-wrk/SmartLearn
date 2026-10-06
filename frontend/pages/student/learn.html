@@ -16,6 +16,7 @@
   <script src="/js/layout.js"></script>
   <script src="/js/topic-resources.js"></script>
   <script src="/js/video-picker.js"></script>
+  <script src="/js/player-progress.js"></script>
   <script src="/js/topic-quiz.js"></script>
   <script>
     ThemeManager.init();
@@ -46,6 +47,42 @@
     const startQuery = incoming.query || topicName || subjectName;
 
     let quizHandle = null;
+    // The live player, so "I have learned up to here" knows how far the
+    // student has got. Replaced every time a different video is played and
+    // stopped when the view is torn down.
+    let playerHandle = null;
+    let stopProgress = null;
+
+    /**
+     * Follows the embedded video and keeps the learning panel's idea of the
+     * watch position current. The panel pushes the position to the server, and
+     * the server uses it to trim the transcript the questions are written from,
+     * so this is what makes the button mean what it says.
+     */
+    function trackPlayer(frame, isVideo) {
+      stopTracking();
+      if (!isVideo || !window.PlayerProgress || !frame) return;
+
+      playerHandle = window.PlayerProgress.attach(frame, () => {
+        if (quizHandle) quizHandle.refresh();
+      });
+      // Ten seconds is often enough for the panel to stay honest without
+      // writing to the database on every tick of the clock.
+      stopProgress = window.PlayerProgress.poll(playerHandle, () => true, 10000, () => {
+        if (quizHandle) quizHandle.refresh();
+      });
+    }
+
+    function stopTracking() {
+      if (stopProgress) {
+        stopProgress();
+        stopProgress = null;
+      }
+      if (playerHandle) {
+        playerHandle.destroy();
+        playerHandle = null;
+      }
+    }
 
     // -------------------------------------------------------------- //
     // Player view
@@ -132,9 +169,14 @@
           difficultyLevel: params.get("difficulty") || "",
           primaryVideoTitle: isVideo ? trackTitle : "",
           primaryVideoUrl: isVideo ? trackUrl : "",
+          // Only a video has a position; a page is always read whole.
+          watchPosition: () => (playerHandle ? playerHandle.position() : null),
         }, subjectName);
         if (!isVideo && trackUrl) quizHandle.record(type, trackTitle, trackUrl);
       }
+
+      // Attached after the panel so the first position read is not lost.
+      trackPlayer(content.querySelector(".learn-frame"), isVideo);
     }
 
     // -------------------------------------------------------------- //
@@ -143,6 +185,7 @@
     // `auto` is used on arrival so the page opens on a playing video; the
     // student only sees this list if they press "Change video".
     function renderChooser(auto) {
+      stopTracking();
       const q = startQuery || "";
       content.innerHTML = `
         <div class="learn-view">
@@ -177,6 +220,7 @@
     // Picker: choose a subject and topic to start learning
     // -------------------------------------------------------------- //
     async function renderPicker() {
+      stopTracking();
       content.innerHTML = `
         <div class="card p-4">
           <h5 class="fw-bold mb-1"><i class="bi bi-collection-play me-2 text-primary"></i>Learn</h5>

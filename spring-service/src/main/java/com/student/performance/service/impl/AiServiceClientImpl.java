@@ -71,7 +71,8 @@ public class AiServiceClientImpl implements AiServiceClient {
 
     @Override
     public Map<String, Object> generateQuestions(String topic, String subject, String resourceTitle,
-                                                 String difficulty, int count, List<String> avoid) {
+                                                 String difficulty, int count, List<String> avoid,
+                                                 String concept, String sourceContent) {
         Map<String, Object> body = new HashMap<>();
         body.put("topic", topic);
         body.put("subject", subject);
@@ -79,10 +80,27 @@ public class AiServiceClientImpl implements AiServiceClient {
         body.put("difficulty", difficulty);
         body.put("count", count);
         body.put("avoid", avoid == null ? List.of() : avoid);
+        body.put("concept", concept == null ? "" : concept);
+        body.put("source_content", sourceContent == null ? "" : sourceContent);
         return post("/api/generate-questions", body);
     }
 
+    @Override
+    public Map<String, Object> extractContent(String url, String kind, Integer maxSeconds) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("url", url == null ? "" : url);
+        body.put("kind", kind == null || kind.isBlank() ? "AUTO" : kind);
+        body.put("max_seconds", maxSeconds);
+        // Reading a page can be slow, and the caller waits on it before it can
+        // generate anything, so it gets longer than a model call would.
+        return post("/api/extract-content", body, Duration.ofSeconds(45));
+    }
+
     private Map<String, Object> post(String path, Map<String, Object> body) {
+        return post(path, body, Duration.ofSeconds(30));
+    }
+
+    private Map<String, Object> post(String path, Map<String, Object> body, Duration timeout) {
         try {
             return webClient.post()
                     .uri(path)
@@ -90,7 +108,7 @@ public class AiServiceClientImpl implements AiServiceClient {
                     .bodyValue(body == null ? Collections.emptyMap() : body)
                     .retrieve()
                     .bodyToMono(new ParameterizedTypeReference<Map<String, Object>>() {})
-                    .timeout(Duration.ofSeconds(30))
+                    .timeout(timeout)
                     .block();
         } catch (Exception ex) {
             log.warn("AI service call failed for {}: {}", path, ex.getMessage());

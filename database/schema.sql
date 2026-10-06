@@ -595,19 +595,30 @@ CREATE TABLE analytics (
 -- resource_key is a stable hash of (student, topic, url) so re-opening the same
 -- link updates the existing row (last_viewed_at) instead of creating duplicates.
 -- That row is the input for "I have learned up to here" question generation.
+--
+-- watched_seconds / duration_seconds are the playback position of a video, so
+-- only the part of it the student actually watched is turned into questions.
+-- content_text caches what the resource said (transcript or page text) up to
+-- that point, and content_seconds records which position that text covers, so a
+-- longer watch is re-read rather than quietly reusing a short extract.
 -- ============================================================================
 CREATE TABLE resource_views (
-  view_id          BIGINT        NOT NULL AUTO_INCREMENT,
-  student_id       BIGINT        NOT NULL,
-  topic_id         BIGINT        NOT NULL,
-  resource_type    ENUM('VIDEO','DOC','SEARCH') NOT NULL DEFAULT 'VIDEO',
-  resource_title   VARCHAR(255)  NOT NULL,
-  resource_url     VARCHAR(500)  NOT NULL,
-  resource_key     CHAR(64)      NOT NULL,
-  progress_label   VARCHAR(120)  NULL,
-  first_viewed_at  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  last_viewed_at   DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  view_count       INT           NOT NULL DEFAULT 1,
+  view_id           BIGINT        NOT NULL AUTO_INCREMENT,
+  student_id        BIGINT        NOT NULL,
+  topic_id          BIGINT        NOT NULL,
+  resource_type     ENUM('VIDEO','DOC','SEARCH') NOT NULL DEFAULT 'VIDEO',
+  resource_title    VARCHAR(255)  NOT NULL,
+  resource_url      VARCHAR(500)  NOT NULL,
+  resource_key      CHAR(64)      NOT NULL,
+  progress_label    VARCHAR(120)  NULL,
+  watched_seconds   INT           NULL,
+  duration_seconds  INT           NULL,
+  content_text      MEDIUMTEXT    NULL,
+  content_source    VARCHAR(20)   NULL,
+  content_seconds   INT           NULL,
+  first_viewed_at   DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  last_viewed_at    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  view_count        INT           NOT NULL DEFAULT 1,
   PRIMARY KEY (view_id),
   UNIQUE KEY uq_resource_view_key (resource_key),
   KEY idx_resource_view_student (student_id),
@@ -618,3 +629,4 @@ CREATE TABLE resource_views (
   CONSTRAINT fk_resource_view_topic FOREIGN KEY (topic_id) REFERENCES topics (topic_id)
     ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB;
+

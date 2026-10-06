@@ -11,6 +11,7 @@ Modules:
   - Recommendation engine, study planner
   - AI Chatbot (Gemini / OpenAI / rule-based fallback)
   - Topic question generation (Gemini / OpenAI / template fallback)
+  - Content extraction (YouTube captions / readable page text)
 """
 
 import os
@@ -24,6 +25,7 @@ from app.models import ModelManager
 from app.recommendation import RecommendationEngine, StudyPlanner
 from app.chatbot import ChatbotService
 from app.question_generator import QuestionGeneratorService
+from app.content_extractor import ContentExtractorService
 from app.explainability import Explainer
 
 logging.basicConfig(level=logging.INFO,
@@ -43,6 +45,7 @@ def create_app() -> Flask:
     planner = StudyPlanner()
     chatbot = ChatbotService()
     question_generator = QuestionGeneratorService()
+    content_extractor = ContentExtractorService()
 
     # Ensure models are ready on startup (train once from synthetic dataset)
     model_manager.ensure_models(preprocessor)
@@ -50,7 +53,8 @@ def create_app() -> Flask:
     # Register blueprints / routes
     from app.routes import register_routes
     register_routes(app, model_manager, preprocessor, explainer,
-                    recommender, planner, chatbot, question_generator)
+                    recommender, planner, chatbot, question_generator,
+                    content_extractor)
 
     @app.get("/")
     def index():

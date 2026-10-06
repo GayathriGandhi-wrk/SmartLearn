@@ -29,6 +29,8 @@
     let isSubmitting = false;
     let screenshotCount = 0;
     const answers = {};
+    let pendingTest = null;
+    let resumeTicker = null;
 
     function warnScreenshot() {
       screenshotCount++;
@@ -52,8 +54,29 @@
     });
 
     content.innerHTML = `
+      <div id="ready-box" style="display:none;">
+        <div class="card p-4 mb-3" style="border-color:var(--primary);">
+          <div class="d-flex justify-content-between align-items-start gap-2 mb-1 flex-wrap">
+            <div>
+              <h5 class="fw-bold mb-1"><i class="bi bi-stars me-2 text-primary"></i>Ready for you</h5>
+              <span class="text-muted small">
+                You worked through these videos and tutorials but have not been tested on them yet.
+              </span>
+            </div>
+          </div>
+          <div id="ready-list" class="mt-3"></div>
+        </div>
+      </div>
+
       <div class="row g-3" id="setup-screen">
         <div class="col-lg-5">
+          <div class="card p-4 mb-3" id="resume-box" style="display:none;">
+            <h6 class="fw-bold mb-1"><i class="bi bi-arrow-counterclockwise me-2 text-primary"></i>Test in progress</h6>
+            <div class="text-muted small mb-3" id="resume-detail"></div>
+            <button class="btn btn-primary btn-sm w-100" id="resume-btn">
+              <i class="bi bi-play-circle me-1"></i>Resume test
+            </button>
+          </div>
           <div class="card p-4">
             <h5 class="fw-bold mb-1"><i class="bi bi-magic me-2"></i>Adaptive Test</h5>
             <p class="text-muted small mb-4">Questions adapt to your ability in real-time. Complete the test to unlock detailed analysis.</p>
@@ -159,6 +182,85 @@
           <button class="btn btn-primary" id="next-btn">Next<i class="bi bi-chevron-right ms-1"></i></button>
         </div>
       </div>`;
+
+    /**
+     * Lists the concepts the student has studied through videos or sites but
+     * has not been tested on. Each row carries the topic, its subject, how many
+     * questions the test will hold, and a button that builds the test and drops
+     * them straight into it.
+     */
+    async function loadPendingTests() {
+      const list = document.getElementById("ready-list");
+      let pending = [];
+      try {
+        const res = await API.get("/topic-resources/pending");
+        pending = (res && res.data) || [];
+      } catch (e) {
+        return; // Nothing pending, or the endpoint is unreachable: just hide it.
+      }
+      if (!Array.isArray(pending) || !pending.length) return;
+
+      list.innerHTML = pending.map((p) => `
+        <div class="d-flex justify-content-between align-items-center gap-2 py-2 flex-wrap"
+             style="border-top:1px solid var(--border);">
+          <div class="min-w-0">
+            <div class="fw-semibold small text-truncate">${UI.safeHtml(p.topicName || "Topic")}</div>
+            <div class="text-muted" style="font-size:.75rem">
+              ${p.subjectName ? UI.safeHtml(p.subjectName) + " &middot; " : ""}
+              ${p.questionCount} question${p.questionCount === 1 ? "" : "s"}
+              ${p.resourceCount ? " &middot; " + p.resourceCount + " resource" + (p.resourceCount === 1 ? "" : "s") + " studied" : ""}
+            </div>
+          </div>
+          <button class="btn btn-primary btn-sm text-nowrap" data-start-topic="${UI.safeHtml(p.topicId)}"
+                  data-difficulty="${UI.safeHtml(p.difficultyLevel || "")}">
+            <i class="bi bi-play-circle me-1"></i>Get started
+          </button>
+        </div>`).join("");
+
+      document.getElementById("ready-box").style.display = "";
+
+      list.querySelectorAll("[data-start-topic]").forEach((btn) =>
+        btn.addEventListener("click", () => startConceptTest(
+          btn.dataset.startTopic, btn.dataset.difficulty, btn))
+      );
+    }
+
+    /**
+     * Builds the concept test and starts it. The backend decides the question
+     * count from the size of the concept, so nothing is sent but the topic.
+     */
+    async function startConceptTest(topicId, difficulty, btn) {
+      const original = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Preparing...';
+      try {
+        const res = await API.post(`/topic-resources/${topicId}/questions`, {
+          difficulty: difficulty || null,
+          createTest: true,
+        });
+        const data = (res && res.data) || {};
+        if (!data.testId) {
+          UI.showToast("No unused questions are left for this topic. Try another one.", "warning");
+          btn.disabled = false;
+          btn.innerHTML = original;
+          return;
+        }
+        if (resumeTicker) clearInterval(resumeTicker);
+        document.getElementById("resume-box").style.display = "none";
+        // The generation response is not the test payload, so pull the test the
+        // student is about to take from the active endpoint.
+        const entered = await offerActiveTest(data.testId);
+        if (!entered) {
+          UI.showToast("The test could not be opened. Please try again.", "danger");
+          btn.disabled = false;
+          btn.innerHTML = original;
+        }
+      } catch (e) {
+        UI.showToast(e.message || "Could not start the test", "danger");
+        btn.disabled = false;
+        btn.innerHTML = original;
+      }
+    }
 
     async function loadSubjects() {
       const select = document.getElementById("subject-select");
@@ -282,7 +384,7 @@
     }
 
     function startTimer() {
-      timeRemaining = activeTest.durationMinutes * 60;
+      timeRemaining = secondsLeft();
       timerInterval = setInterval(() => {
         timeRemaining--;
         const m = Math.floor(timeRemaining / 60).toString().padStart(2, "0");
@@ -294,6 +396,97 @@
           submitTest();
         }
       }, 1000);
+    }
+
+    /**
+     * Counts down from the server's deadline rather than the full duration, so
+     * a test the student comes back to after a break only gets the time it has
+     * actually got left. Falls back to the full duration if the deadline did
+     * not survive the trip.
+     */
+    function secondsLeft() {
+      return secondsLeftFor(activeTest);
+    }
+
+    function secondsLeftFor(test) {
+      if (!test) return 0;
+      if (test.deadline) {
+        const deadline = new Date(test.deadline).getTime();
+        if (!Number.isNaN(deadline)) {
+          return Math.max(0, Math.round((deadline - Date.now()) / 1000));
+        }
+      }
+      return (test.durationMinutes || 0) * 60;
+    }
+
+    /** Moves the page from the setup form into a running test. */
+    function showTestScreen(test) {
+      activeTest = test;
+      currentQuestionIndex = 0;
+      isSubmitting = false;
+      // A new test must never inherit answers picked for the previous one.
+      Object.keys(answers).forEach((k) => delete answers[k]);
+      document.getElementById("setup-screen").style.display = "none";
+      // The ready list describes what is still untested, which stops being true
+      // the moment the student is inside a test.
+      document.getElementById("ready-box").style.display = "none";
+      document.getElementById("test-screen").style.display = "block";
+      testActive = true;
+      renderQuestion();
+      startTimer();
+    }
+
+    /**
+     * A test generated by the learning module is already sitting in IN_PROGRESS
+     * when the student arrives here, so offer it back rather than making them
+     * configure an identical one by hand. Called with the test id the learning
+     * page just created, it skips the prompt and resumes straight away.
+     *
+     * @returns {Promise<boolean>} true when the student is now inside the test.
+     */
+    async function offerActiveTest(wantedTestId) {
+      let test = null;
+      try {
+        const res = await API.get("/tests/active");
+        test = (res && res.data) || null;
+      } catch (e) {
+        // No test in progress is the normal case, not an error worth showing.
+        test = null;
+      }
+      if (!test || !test.questions || !test.questions.length) return false;
+
+      if (wantedTestId && String(test.testId) !== String(wantedTestId)) {
+        // The test this student just earned is gone, most likely because they
+        // started another one. Let them configure a fresh test instead.
+        return false;
+      }
+      pendingTest = test;
+      if (wantedTestId) {
+        showTestScreen(test);
+        return true;
+      }
+
+      const done = (test.totalQuestions || 0);
+      document.getElementById("resume-detail").innerHTML =
+        `<strong>${UI.safeHtml(test.title || "Test")}</strong><br>
+         ${done} question${done === 1 ? "" : "s"} &middot;
+         <span id="resume-clock"></span> left`;
+      document.getElementById("resume-box").style.display = "";
+
+      const tick = () => {
+        const secs = secondsLeftFor(test);
+        const el = document.getElementById("resume-clock");
+        if (el) el.textContent = `${Math.floor(Math.max(0, secs) / 60)} min`;
+      };
+      tick();
+      if (resumeTicker) clearInterval(resumeTicker);
+      resumeTicker = setInterval(tick, 30000);
+
+      document.getElementById("resume-btn").addEventListener("click", () => {
+        if (resumeTicker) clearInterval(resumeTicker);
+        showTestScreen(pendingTest);
+      });
+      return false;
     }
 
     async function submitTest() {
@@ -313,6 +506,10 @@
         window.location.href = "/pages/student/test-result.html";
       } catch (e) {
         UI.showToast(e.message, "danger");
+        // Let the student try again; otherwise a single failed request strands
+        // them on a dead test screen with their answers still in memory.
+        isSubmitting = false;
+        testActive = true;
       }
     }
 
@@ -346,13 +543,10 @@
       data.difficulty = data.difficulty || null;
       try {
         const res = await API.post("/tests/start", data);
-        activeTest = res.data;
-        currentQuestionIndex = 0;
-        document.getElementById("setup-screen").style.display = "none";
-        document.getElementById("test-screen").style.display = "block";
-        testActive = true;
-        renderQuestion();
-        startTimer();
+        // Starting by hand supersedes anything the learning module had queued.
+        if (resumeTicker) clearInterval(resumeTicker);
+        document.getElementById("resume-box").style.display = "none";
+        showTestScreen(res.data);
       } catch (err) {
         UI.showToast(err.message, "danger");
       }
@@ -377,6 +571,10 @@
 
     loadSubjects();
     loadLastTest();
+    loadPendingTests();
+    // ?testId= is set by the learning page after it generates a test from the
+    // videos and sites the student just worked through.
+    offerActiveTest(new URLSearchParams(window.location.search).get("testId"));
   </script>
 </body>
 </html>

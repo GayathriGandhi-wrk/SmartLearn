@@ -47,7 +47,10 @@
     };
   }
 
-  const embedUrl = (videoId) => `https://www.youtube.com/embed/${encodeURIComponent(videoId)}?rel=0`;
+  // enablejsapi=1 is what lets PlayerProgress read the playback position, which
+  // is how "I have learned up to here" knows where the student stopped.
+  const embedUrl = (videoId) =>
+    `https://www.youtube.com/embed/${encodeURIComponent(videoId)}?rel=0&enablejsapi=1`;
 
   /** The player markup. Only ever called with a validated 11-char video ID. */
   function playerHtml(videoId, title) {

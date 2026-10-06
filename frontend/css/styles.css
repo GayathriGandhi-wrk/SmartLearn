@@ -222,22 +222,6 @@ a:hover { color: var(--primary-dark); }
   padding: 0.75rem; border: 1px dashed var(--primary); border-radius: 10px;
   background: color-mix(in srgb, var(--primary) 6%, transparent);
 }
-.learned-question {
-  padding: 0.75rem; margin-bottom: 0.6rem; border: 1px solid var(--border);
-  border-radius: 10px; background: var(--bg);
-}
-.learned-question.is-correct { border-color: var(--success); }
-.learned-question.is-wrong { border-color: var(--danger); }
-.learned-option {
-  display: flex; align-items: flex-start; gap: 0.4rem; padding: 0.4rem 0.55rem;
-  border: 1px solid var(--border); border-radius: 8px; cursor: pointer;
-  transition: background 0.12s ease, border-color 0.12s ease;
-}
-.learned-option:hover { background: color-mix(in srgb, var(--primary) 6%, transparent); }
-.learned-option.is-answer { border-color: var(--success); background: color-mix(in srgb, var(--success) 12%, transparent); }
-.learned-option.is-wrong { border-color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent); }
-.learned-option:has(input:disabled) { cursor: default; }
-.learned-option:has(input:disabled):hover { background: inherit; }
 
 .risk-low { color: var(--secondary); }
 .risk-medium { color: var(--warning); }
@@ -271,7 +255,13 @@ a:hover { color: var(--primary-dark); }
   aspect-ratio: 16 / 9;
   min-height: 320px;
 }
-.learn-frame { width: 100%; height: 100%; border: 0; display: block; }
+ .learn-frame {
+    width: 100%;
+    height: 100%;
+    min-height: 600px;
+    border: none;
+    display: block;
+}
 .learn-frame-wrap.is-blocked::after {
   content: "This site will not open inside the page. Use “Open in new tab” above.";
   position: absolute;

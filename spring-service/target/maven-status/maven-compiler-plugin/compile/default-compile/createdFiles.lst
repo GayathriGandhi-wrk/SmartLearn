@@ -3,11 +3,13 @@ com\student\performance\service\impl\TestServiceImpl.class
 com\student\performance\dto\PlannerDto.class
 com\student\performance\entity\User.class
 com\student\performance\dto\TopicResourceDto$AnswerRequest.class
+com\student\performance\dto\TopicResourceDto$ProgressRequest.class
 com\student\performance\service\impl\PlannerServiceImpl$1.class
 com\student\performance\entity\WeakSubject.class
 com\student\performance\dto\StudentDto$StudentProfileResponse.class
 com\student\performance\entity\Analytics.class
 com\student\performance\dto\AuthDto$ChangePasswordRequest.class
+com\student\performance\dto\PredictionDto$PredictionHistoryDto.class
 com\student\performance\service\impl\TopicResourceServiceImpl$1.class
 com\student\performance\controller\QuestionController.class
 com\student\performance\service\impl\OtpServiceImpl.class
@@ -45,6 +47,7 @@ com\student\performance\config\SecurityConfig.class
 com\student\performance\controller\TestController.class
 com\student\performance\dto\SubjectDto$SubjectMarksRequest.class
 com\student\performance\service\SubjectService.class
+com\student\performance\service\impl\TopicResourceServiceImpl$ResourceContent.class
 com\student\performance\service\FileStorageService.class
 com\student\performance\dto\AnalyticsDto$StudyPlanProgress.class
 com\student\performance\repository\StudentRepository.class
@@ -89,6 +92,7 @@ com\student\performance\dto\AdminDto$QuestionImportItem.class
 com\student\performance\security\JwtService.class
 com\student\performance\service\NotificationService.class
 com\student\performance\service\impl\GamificationServiceImpl.class
+com\student\performance\entity\ResourceView$ContentSource.class
 com\student\performance\dto\AnalyticsDto$BadgeDto.class
 com\student\performance\entity\StudyPlan$PlanType.class
 com\student\performance\service\RecommendationService.class
@@ -106,6 +110,7 @@ com\student\performance\dto\TopicResourceDto$AnswerResponse.class
 com\student\performance\config\OpenApiConfig.class
 com\student\performance\dto\PlannerDto$StudyPlanRequest.class
 com\student\performance\service\AiServiceClient.class
+com\student\performance\dto\PredictionDto$PerformanceFactorsResponse.class
 com\student\performance\dto\SubjectDto.class
 com\student\performance\dto\TestDto$TestQuestionDto.class
 com\student\performance\exception\GlobalExceptionHandler.class
@@ -150,6 +155,7 @@ com\student\performance\entity\StudyPlanSession$Status.class
 com\student\performance\entity\ResourceView$ResourceType.class
 com\student\performance\repository\TestResultRepository.class
 com\student\performance\service\impl\ChatbotServiceImpl.class
+com\student\performance\dto\PredictionDto$PerformanceFactorDto.class
 com\student\performance\dto\PredictionDto$KnowledgeGapDto.class
 com\student\performance\entity\Test$Status.class
 com\student\performance\repository\RoleRepository.class
@@ -160,8 +166,10 @@ com\student\performance\controller\PredictionController.class
 com\student\performance\dto\PlannerDto$StudyPlanSummaryDto.class
 com\student\performance\dto\AuthDto$LoginRequest.class
 com\student\performance\service\impl\PlannerServiceImpl$RequestContext.class
+com\student\performance\dto\PredictionDto$TopicPredictionResponse.class
 com\student\performance\dto\QuestionDto$PracticeResponse.class
 com\student\performance\service\impl\SubjectServiceImpl.class
+com\student\performance\dto\TopicResourceDto$PendingTest.class
 com\student\performance\config\WebConfig.class
 com\student\performance\dto\AnalyticsDto$DistributionPoint.class
 com\student\performance\entity\Student.class
@@ -170,6 +178,7 @@ com\student\performance\entity\StudyPlan$Status.class
 com\student\performance\dto\AuthDto$VerifyOtpRequest.class
 com\student\performance\dto\PlannerDto$DistributionEntry.class
 com\student\performance\dto\TopicResourceDto.class
+com\student\performance\dto\PredictionDto$TopicScoreDto.class
 com\student\performance\service\TopicResourceService.class
 com\student\performance\dto\PlannerDto$SubjectSelection.class
 com\student\performance\service\impl\PlannerServiceImpl$SessionSpec.class
@@ -217,6 +226,7 @@ com\student\performance\repository\ChatHistoryRepository.class
 com\student\performance\entity\Notification.class
 com\student\performance\entity\Question$Source.class
 com\student\performance\service\impl\TopicResourceServiceImpl.class
+com\student\performance\dto\AdminDto$StudentOverviewResponse.class
 com\student\performance\dto\AuthDto$ResetPasswordRequest.class
 com\student\performance\dto\AnalyticsDto$SubjectStudyHours.class
 com\student\performance\exception\BadRequestException.class
